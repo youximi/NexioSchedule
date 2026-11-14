@@ -1,0 +1,102 @@
+name: iOS unsigned IPA
+
+on:
+  push:
+    branches: [ios_Ci]
+  workflow_dispatch:
+
+concurrency:
+  group: ios-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    name: Build unsigned iOS development IPA
+    # ContentView.swift 使用 iOS 27.1 SDK 的 UIKit API。
+    runs-on: xcode-27
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+      IOS_BUILD_DIR: ${{ github.workspace }}/nexio-ios-build
+      IOS_OUTPUT_DIR: ${{ github.workspace }}/nexio-ios-output
+
+    steps:
+      - name: Checkout application
+        uses: actions/checkout@v6
+
+      # 0.1.1 的发布包缺少 iOS 变体，使用项目已有的 ../softglass 复合构建入口。
+      - name: Checkout SoftGlass 0.1.1 sources
+        uses: actions/checkout@v6
+        with:
+          repository: HaoZai000/softglass
+          ref: '0.1.1'
+          path: softglass-src
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Prepare iOS build
+        run: |
+          chmod +x ./gradlew
+          ln -s "$GITHUB_WORKSPACE/softglass-src" "$GITHUB_WORKSPACE/../softglass"
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      # Xcode 的现有构建阶段负责调用 iOS Kotlin framework 任务。
+      - name: Build unsigned device app
+        run: |
+          mkdir -p "$IOS_OUTPUT_DIR"
+          xcodebuild \
+            -project iosApp/iosApp.xcodeproj \
+            -scheme iosApp \
+            -configuration Debug \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$IOS_BUILD_DIR" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            build 2>&1 | tee "$IOS_OUTPUT_DIR/xcodebuild.log"
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p "$IOS_OUTPUT_DIR/Payload"
+          ditto \
+            "$IOS_BUILD_DIR/Build/Products/Debug-iphoneos/NexioSchedule.app" \
+            "$IOS_OUTPUT_DIR/Payload/NexioSchedule.app"
+          find "$IOS_OUTPUT_DIR/Payload" -type d -name _CodeSignature -prune -exec rm -rf {} +
+          find "$IOS_OUTPUT_DIR/Payload" -type f -name embedded.mobileprovision -delete
+          ditto -c -k --keepParent \
+            "$IOS_OUTPUT_DIR/Payload" \
+            "$IOS_OUTPUT_DIR/NexioSchedule-dev-unsigned.ipa"
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v7
+        with:
+          name: NexioSchedule-dev-unsigned-ipa
+          path: ${{ env.IOS_OUTPUT_DIR }}/NexioSchedule-dev-unsigned.ipa
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-build-log
+          path: ${{ env.IOS_OUTPUT_DIR }}/xcodebuild.log
+          if-no-files-found: ignore
+          retention-days: 7
