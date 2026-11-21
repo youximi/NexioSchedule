@@ -25,18 +25,23 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
       IOS_BUILD_DIR: ${{ github.workspace }}/nexio-ios-build
       IOS_OUTPUT_DIR: ${{ github.workspace }}/nexio-ios-output
+      SOFTGLASS_REF: '0.1.3'
+      NEXIOUI_REF: '0.1.1'
 
     steps:
       - name: Checkout application
         uses: actions/checkout@v6
 
-      # 0.1.1 的发布包缺少 iOS 变体，使用项目已有的 ../softglass 复合构建入口。
-      - name: Checkout SoftGlass 0.1.1 sources
-        uses: actions/checkout@v6
-        with:
-          repository: HaoZai000/softglass
-          ref: '0.1.1'
-          path: softglass-src
+      # SoftGlass 0.1.3 与 NexioUI 0.1.1 的 JitPack 发布包均缺少 iOS 变体，
+      # 需拉取源码到同级目录 ../softglass 与 ../nexioui 走复合构建
+      # （NexioUI 自身的 settings.gradle.kts 也会读取 ../softglass，必须为真实同级目录）。
+      - name: Checkout SoftGlass & NexioUI sibling sources
+        run: |
+          rm -rf "$GITHUB_WORKSPACE/../softglass" "$GITHUB_WORKSPACE/../nexioui"
+          git -c advice.detachedHead=false clone --depth 1 --branch "$SOFTGLASS_REF" \
+            https://github.com/HaoZai000/SoftGlass.git "$GITHUB_WORKSPACE/../softglass"
+          git -c advice.detachedHead=false clone --depth 1 --branch "$NEXIOUI_REF" \
+            https://github.com/HaoZai000/NexioUI.git "$GITHUB_WORKSPACE/../nexioui"
 
       - name: Set up JDK 25
         uses: actions/setup-java@v5
@@ -50,7 +55,8 @@ jobs:
       - name: Prepare iOS build
         run: |
           chmod +x ./gradlew
-          ln -s "$GITHUB_WORKSPACE/softglass-src" "$GITHUB_WORKSPACE/../softglass"
+          test -f "$GITHUB_WORKSPACE/../softglass/build.gradle.kts"
+          test -f "$GITHUB_WORKSPACE/../nexioui/build.gradle.kts"
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
 
