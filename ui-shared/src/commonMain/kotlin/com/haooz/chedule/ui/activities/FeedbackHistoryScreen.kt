@@ -35,6 +35,7 @@ import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.FeedbackStr
 import com.haooz.chedule.ui.components.FeedbackKindLabel
+import com.haooz.chedule.ui.components.FeedbackReplyBlock
 import com.haooz.chedule.ui.components.FeedbackStageBar
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
@@ -42,17 +43,17 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -169,7 +170,7 @@ fun FeedbackHistoryScreen(
                 .padding(top = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            TextButton(
+            FlatTextButton(
                 text = CommonStr.cancel(),
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -178,10 +179,10 @@ fun FeedbackHistoryScreen(
                 modifier = Modifier.weight(1f),
             )
             // 通用删除弹窗：确认键是红字，不是主题色（主题色会让人以为是普通操作）
-            TextButton(
+            FlatTextButton(
                 text = FeedbackStr.delete(),
                 onClick = {
-                    val id = target?.id ?: return@TextButton
+                    val id = target?.id ?: return@FlatTextButton
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                     deleting = true
                     scope.launch {
@@ -207,7 +208,7 @@ private fun FeedbackHistoryCard(
     record: FeedbackRecord,
     onDelete: () -> Unit,
 ) {
-    val theme = MiuixTheme.colorScheme
+    val theme = NexioTheme.colorScheme
     val created = remember(record.createdAt) { formatMoment(record.createdAt) }
 
     Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
@@ -219,14 +220,14 @@ private fun FeedbackHistoryCard(
             Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = created,
-                style = MiuixTheme.textStyles.footnote2,
+                style = NexioTheme.textStyles.footnote2,
                 color = theme.onSurfaceVariantSummary,
             )
         }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = record.title.ifBlank { FeedbackStr.noTitle() },
-            style = MiuixTheme.textStyles.body1,
+            style = NexioTheme.textStyles.body1,
             fontWeight = FontWeight.Medium,
             color = theme.onSurface,
             maxLines = 2,
@@ -236,7 +237,17 @@ private fun FeedbackHistoryCard(
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = record.content,
-                style = MiuixTheme.textStyles.body2,
+                style = NexioTheme.textStyles.body2,
+                color = theme.onSurfaceVariantActions,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (record.summary.isNotBlank() && record.summary != record.content) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = record.summary,
+                style = NexioTheme.textStyles.body2,
                 color = theme.onSurfaceVariantActions,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
@@ -247,36 +258,21 @@ private fun FeedbackHistoryCard(
         Spacer(modifier = Modifier.height(14.dp))
         FeedbackStageBar(status = record.status, kind = record.kind)
 
-        val note = record.statusNote
-        val releaseVersion = record.version
-        if (note.isNotBlank() || (releaseVersion.isNotBlank() && record.status == "released")) {
+        if (record.statusNote.isNotBlank()) {
             Spacer(modifier = Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top,
-            ) {
-                Text(
-                    text = "·",
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = theme.onSurfaceVariantSummary,
-                    modifier = Modifier.padding(end = 6.dp),
-                )
-                Text(
-                    text = buildString {
-                        if (note.isNotBlank()) append(note)
-                        if (releaseVersion.isNotBlank()) {
-                            if (note.isNotBlank()) append("  ")
-                            append(FeedbackStr.versionTag(releaseVersion))
-                        }
-                    },
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = theme.onSurfaceVariantActions,
-                )
-            }
+            FeedbackReplyBlock(reply = record.statusNote)
+        }
+        if (record.version.isNotBlank()) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = FeedbackStr.versionTag(record.version),
+                style = NexioTheme.textStyles.footnote1,
+                color = theme.onSurfaceVariantSummary,
+            )
         }
 
-        // 只有「已收到」能删：一旦被采纳/进入流程，删掉会让用户以为进度也丢了
-        if (record.status == "received") {
+        // 只有「待处理」能删：一旦标为已收到就进入对外进度，删掉会让用户以为进度也丢了
+        if (record.status == "pending") {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -297,7 +293,7 @@ private fun FeedbackHistoryCard(
                 ) {
                     Text(
                         text = FeedbackStr.delete(),
-                        style = MiuixTheme.textStyles.body2,
+                        style = NexioTheme.textStyles.body2,
                         fontWeight = FontWeight.Medium,
                         color = Color(0xFFF44336),
                     )
@@ -315,7 +311,7 @@ internal fun FeedbackPlaceholder(
     actionText: String = "",
     onAction: () -> Unit = {},
 ) {
-    val theme = MiuixTheme.colorScheme
+    val theme = NexioTheme.colorScheme
     Card(
         modifier = Modifier.fillMaxWidth(),
         insideMargin = PaddingValues(top = 18.dp, bottom = 14.dp, start = 14.dp, end = 14.dp),
@@ -330,19 +326,19 @@ internal fun FeedbackPlaceholder(
                     text = title,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface,
+                    color = NexioTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                 )
             }
             Text(
                 text = text,
                 fontSize = 14.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                 textAlign = TextAlign.Center,
             )
             if (actionText.isNotBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
-                TextButton(
+                FlatTextButton(
                     text = actionText,
                     onClick = onAction,
                     modifier = Modifier.fillMaxWidth(),

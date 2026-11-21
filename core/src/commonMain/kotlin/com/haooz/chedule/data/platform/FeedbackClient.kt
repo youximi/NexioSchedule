@@ -14,7 +14,7 @@ import kotlinx.serialization.json.JsonObject
 /**
  * 应用内反馈与开发进度的数据层。
  *
- * 与 [StatsReporter] 同包同风格：明文 HTTP + [HttpService]，**不要换 Ktor**
+ * 与 [StatsReporter] 同包同风格：HTTP 封装走 [HttpService]，**不要换 Ktor**
  * （会把 coroutines 顶到 1.10+，影响提醒/闹钟/小组件）。
  *
  * 身份只有匿名 `device_id`（与统计上报同一个 ID）+ 用户自填的邮箱：
@@ -25,7 +25,7 @@ import kotlinx.serialization.json.JsonObject
 object FeedbackClient {
 
     private const val TAG = "FeedbackClient"
-    private const val BASE_URL = "http://182.92.193.223:3000/api/feedback"
+    private const val BASE_URL = ApiEndpoints.FEEDBACK
 
     /** 与服务端 `FEEDBACK_MAX_*` 保持一致 */
     const val MAX_TITLE_LENGTH = 80
@@ -171,6 +171,7 @@ object FeedbackClient {
             id = optString("id"),
             kind = FeedbackKind.fromWire(optString("type")),
             title = optString("title"),
+            summary = optString("summary"),
             content = optString("content"),
             status = optString("status"),
             statusLabel = optString("status_label"),
@@ -189,6 +190,7 @@ object FeedbackClient {
         summary = optString("summary"),
         status = optString("status"),
         statusLabel = optString("status_label"),
+        statusNote = optString("status_note"),
         version = optString("version"),
         updatedAt = optString("updated_at"),
     )
@@ -218,6 +220,7 @@ data class FeedbackRecord(
     val id: String,
     val kind: FeedbackKind,
     val title: String,
+    val summary: String,
     val content: String,
     val status: String,
     val statusLabel: String,
@@ -236,6 +239,7 @@ data class RoadmapRecord(
     val summary: String,
     val status: String,
     val statusLabel: String,
+    val statusNote: String,
     val version: String,
     val updatedAt: String,
 )

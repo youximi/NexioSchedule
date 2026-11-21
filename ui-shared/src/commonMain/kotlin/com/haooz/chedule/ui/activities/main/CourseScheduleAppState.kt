@@ -51,16 +51,21 @@ import com.haooz.chedule.ui.activities.classschedule.ScheduleViewMode
 import com.haooz.chedule.ui.activities.today.TodayAssistantCardData
 import com.haooz.chedule.ui.components.PageSwitchState
 import com.haooz.chedule.ui.components.SharedFileIntent
-import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
-import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
+import com.haooz.nexioui.motion.MORPH_BACKGROUND_SHRINK
+import com.haooz.nexioui.motion.OobeCubicOutEasing
+import com.haooz.nexioui.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.navigation.AppRouter
 import com.haooz.chedule.ui.utils.FeatureLog
 import com.haooz.chedule.ui.utils.HostNavigationState
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
+import com.haooz.chedule.ui.utils.TodayViewMode
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.captureScreenWithNativeChrome
+import com.haooz.chedule.ui.utils.freezeSource
 import com.haooz.chedule.ui.utils.loadScheduleViewMode
+import com.haooz.chedule.ui.utils.loadTodayViewMode
 import com.haooz.chedule.ui.utils.saveScheduleViewMode
+import com.haooz.chedule.ui.utils.saveTodayViewMode
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -80,8 +85,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.isoDayNumber
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.utils.OverScrollState
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.overscroll.OverScrollState
 
 /**
  * 课表主界面的状态与交互逻辑，由 [CourseScheduleApp] 用 `remember` 持有。
@@ -234,6 +239,8 @@ class CourseScheduleAppState {
     var onPickWallpaperImage: (((ImageBitmap?) -> Unit) -> Unit)? = null
     var onShareSchedule: ((scheduleName: String, onSharingChanged: (Boolean) -> Unit) -> Unit)? =
         null
+    /** 学期课表预览「保存为图片」：出好的海报交给宿主落盘；`null` 时下载按钮不显示（非 Android 宿主）。 */
+    var onSaveScheduleImage: ((ImageBitmap) -> Unit)? = null
     var onReadSharedFileText: ((String) -> String?)? = null
     var sharedFileIntent: SharedFileIntent? = null
     var onShareIntentConsumed: () -> Unit = {}
@@ -286,11 +293,14 @@ class CourseScheduleAppState {
     var detailCardHeight by mutableFloatStateOf(0f)
     var detailSnapshot by mutableStateOf<TransitionLayerSnapshot?>(null)
     var showDetail by mutableStateOf(false)
+    /** 详情页是否已放行播放展开动画（见 openCourseDetail：先上屏卡态，再藏源卡拍快照） */
+    var detailMorphStarted by mutableStateOf(false)
 
     // 详情页退出中：主内容提前恢复绘制（快照垫底），画出来后再撤快照。见 onBackStart。
     var detailExiting by mutableStateOf(false)
     var detailFromToday by mutableStateOf(false)
     var detailTargetWeek by mutableIntStateOf(0)
+    /** 进详情前要藏掉的源卡片：先藏再截整页，快照里才不会留下它 */
     var hiddenCourseIds by mutableStateOf(setOf<String>())
     var isDraggingCard by mutableStateOf(false)
     // 被浮层顶替的 (课程 id, 周次)。必须带周次：多周课在每一周都是同一条记录，
@@ -659,6 +669,10 @@ class CourseScheduleAppState {
     var switchReloadJob by mutableStateOf<Job?>(null)
     val switchAnimProgress = Animatable(0f)
     val managePageBlurRadius = Animatable(0f)
+
+    // 详情 morph 的整屏背景快照：录一帧主内容后独立缩放，避免实时内容缩放导致的整页重组
+    var detailBackgroundSnapshot by mutableStateOf<TransitionLayerSnapshot?>(null)
+    val detailBackgroundScale = Animatable(1f)
 
     // 仅课程长按菜单模糊；空白格菜单不模糊
     val shortcutMenuBlurRadius = Animatable(0f)
@@ -1573,9 +1587,10 @@ class CourseScheduleAppState {
         detailTargetWeek = targetWeek
         // 重新进入：上次退出若没来得及复位（异常路径），这里兜底
         detailExiting = false
-        detailSnapshot = cardLayer?.takeIf {
+        val cardSource = cardLayer?.takeIf {
             it.layer.size.width > 0 && it.layer.size.height > 0
-        }?.let { source ->
+        }
+        detailSnapshot = cardSource?.let { source ->
             // 子图层依赖要保留在上面的 lazy / 响应式分支之外
             retainedDetailLayer.record(
                 densityProvider,
@@ -1584,27 +1599,45 @@ class CourseScheduleAppState {
             ) {
                 drawLayer(source.layer)
             }
-            val snapshot = TransitionLayerSnapshot(retainedDetailLayer, source.bounds)
-            // 再异步冻结一份位图：`drawLayer` 只是**活引用**，源行随后会被 hiddenCourseIds 藏掉，
-            // 退出 morph 重放时就只剩玻璃背景、没有文字（进入时源还活着，只有退出缺内容）。
-            // 光栅化后与源图层彻底脱钩：进入先用活引用，位图就绪后原地替换。
-            coroutineScope.launch {
-                val frozen = runCatching { source.layer.toImageBitmap() }.getOrNull()
-                    ?: return@launch
-                if (detailSnapshot === snapshot) {
-                    detailSnapshot = snapshot.copy(frozen = frozen)
-                }
-            }
-            snapshot
+            TransitionLayerSnapshot(retainedDetailLayer, source.bounds)
         }
-        hiddenCourseIds = setOf(courseIdToHide)
-        showDetail = true
-        // 详情 morph 只做下层模糊，不做缩放（整屏离屏层是掉帧第一来源）
+        // 先藏源卡片、再录整屏背景
+        detailMorphStarted = false
         coroutineScope.launch {
-            managePageBlurRadius.animateTo(
-                HostNavigationState.DETAIL_BACKDROP_BLUR_DP,
-                animationSpec = tween(540, easing = OobeQuartOutEasing)
-            )
+            // 卡片快照先冻结成位图
+            val cardSnapshot = detailSnapshot
+            if (cardSource != null && cardSnapshot != null) {
+                runCatching { cardSource.layer.toImageBitmap() }.getOrNull()
+                    ?.let { cardSnapshot.frozen = it }
+            }
+            // 详情页先按「起点卡态」上屏
+            // 同一帧再藏掉源卡片，下一帧起浮层卡就接替了它的位置
+            showDetail = true
+            // 没有卡片快照就没有浮层卡接替位置，此时不能藏源卡，否则会露白
+            hiddenCourseIds = if (cardSnapshot != null) setOf(courseIdToHide) else emptySet()
+            // 这里录制到的是「源卡已隐藏」后的绘制，快照自然不含源卡片
+            prepareMainContentLayer()
+            val background = TransitionLayerSnapshot(screenGraphicsLayer)
+            // 背景要 3×3 平铺整屏：先光栅化，形变期间只画一张纹理
+            background.freezeSource()
+            detailBackgroundSnapshot = background
+            detailBackgroundScale.snapTo(1f)
+            // 快照层上屏后再放行动画，展开首帧不会空洞
+            withFrameNanos { }
+            withFrameNanos { }
+            detailMorphStarted = true
+            launch {
+                managePageBlurRadius.animateTo(
+                    HostNavigationState.DETAIL_BACKDROP_BLUR_DP,
+                    animationSpec = tween(580, easing = OobeQuartOutEasing)
+                )
+            }
+            launch {
+                detailBackgroundScale.animateTo(
+                    MORPH_BACKGROUND_SHRINK,
+                    animationSpec = tween(580, easing = OobeQuartOutEasing)
+                )
+            }
         }
     }
 
@@ -1726,6 +1759,15 @@ class CourseScheduleAppState {
         if (scheduleViewMode == mode) return
         scheduleViewMode = mode
         saveScheduleViewMode(mode)
+    }
+
+    /** 今日页呈现方式（周网格 / 时间轴），落盘在 app_theme_prefs 的 today_view_mode */
+    var todayViewMode by mutableStateOf(loadTodayViewMode())
+
+    fun applyTodayViewMode(mode: TodayViewMode) {
+        if (todayViewMode == mode) return
+        todayViewMode = mode
+        saveTodayViewMode(mode)
     }
 
     // 按钮原地随菜单展开淡出，形成"按钮连贯变为菜单"的单一动画

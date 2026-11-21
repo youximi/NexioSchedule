@@ -97,21 +97,21 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.DropdownDefaults
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.GridView
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.dropdown.DropdownDefaults
+import com.haooz.nexioui.dropdown.DropdownEntry
+import com.haooz.nexioui.dropdown.DropdownItem
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.GridView
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 /**
  * 预览小部件的**固定物理宽度**。
@@ -168,6 +168,10 @@ fun WidgetIntroScreen(
      * 参数变了 Compose 一定会重跑，靠全局 state 的失效时机则会拖到下次进页面。
      */
     wallpaperRevision: Int = 0,
+    /** 「自定义」入口（换壁纸浮层）。鸿蒙卡片是 ArkTS 渲染，改不了这份预览，直接隐藏 */
+    showCustomizeEntry: Boolean = true,
+    /** 底部「边距样式」选择器：只对安卓 RemoteViews 生效 */
+    showPaddingSelector: Boolean = true,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val isTablet = isTabletWidth()
@@ -321,16 +325,18 @@ fun WidgetIntroScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // 自定义入口：跟着「当前这一页」的小部件走，所以矩形也取当前页的
-                WidgetCustomizeEntry(
-                    onClick = {
-                        val page = pageState.currentPage
-                        val bounds = widgetBounds[page]
-                        if (bounds != null) {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                            onCustomizeRequest(WidgetCustomizeRequest(page = page, bounds = bounds))
+                if (showCustomizeEntry) {
+                    WidgetCustomizeEntry(
+                        onClick = {
+                            val page = pageState.currentPage
+                            val bounds = widgetBounds[page]
+                            if (bounds != null) {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                onCustomizeRequest(WidgetCustomizeRequest(page = page, bounds = bounds))
+                            }
                         }
-                    }
-                )
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -354,7 +360,7 @@ fun WidgetIntroScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                if (!isIosPlatform) {
+                if (!isIosPlatform && showPaddingSelector) {
                     val repository = remember { CourseRepository() }
                     var paddingMode by remember { mutableIntStateOf(repository.getWidgetPaddingMode()) }
                     Box(modifier = Modifier.width(previewWidth)) {
@@ -397,8 +403,8 @@ private fun WidgetPagerIndicator(
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
-    val activeColor = MiuixTheme.colorScheme.primary
-    val inactiveColor = MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.12f)
+    val activeColor = NexioTheme.colorScheme.primary
+    val inactiveColor = NexioTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.12f)
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -489,19 +495,19 @@ private fun indicatorWidth(
 
 @Composable
 private fun WidgetCustomizeEntry(onClick: () -> Unit) {
-    val contentColor = MiuixTheme.colorScheme.onSurface
+    val contentColor = NexioTheme.colorScheme.onSurface
     Row(
         modifier = Modifier
             .height(36.dp)
             .clip(ContinuousCapsule())
-            .background(MiuixTheme.colorScheme.surfaceContainerHigh)
+            .background(NexioTheme.colorScheme.surfaceContainerHigh)
             .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = MiuixIcons.GridView,
+            imageVector = NexioIcons.GridView,
             contentDescription = null,
             modifier = Modifier.size(16.dp),
             tint = contentColor
@@ -1067,12 +1073,12 @@ private fun CourseCardPreview(
 @Composable
 private fun FeatureItem(title: String, description: String) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        Box(modifier = Modifier.size(8.dp).padding(top = 7.dp).background(MiuixTheme.colorScheme.primary, com.haooz.softglass.shape.ContinuousRoundedRectangle(4.dp)))
+        Box(modifier = Modifier.size(8.dp).padding(top = 7.dp).background(NexioTheme.colorScheme.primary, com.haooz.softglass.shape.ContinuousRoundedRectangle(4.dp)))
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = MiuixTheme.colorScheme.onSurface)
+            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = NexioTheme.colorScheme.onSurface)
             Spacer(modifier = Modifier.height(2.dp))
-            Text(description, fontSize = 14.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions)
+            Text(description, fontSize = 14.sp, color = NexioTheme.colorScheme.onSurfaceVariantActions)
         }
     }
 }

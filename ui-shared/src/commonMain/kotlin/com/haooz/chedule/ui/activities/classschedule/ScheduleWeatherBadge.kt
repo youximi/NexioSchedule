@@ -21,10 +21,11 @@ import com.haooz.chedule.ui.components.WeatherAlertBadge
 import com.haooz.chedule.ui.components.text.miuix.Text
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
+import com.haooz.chedule.ui.utils.rememberWeatherVisible
 import com.haooz.chedule.weather.WeatherStore
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import org.jetbrains.compose.resources.painterResource
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.theme.NexioTheme
 
 /**
  * 课表页顶栏左侧的天气条：图标 + 当前温度 + 最高级别预警徽标，点击进天气详情。
@@ -34,6 +35,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  */
 @Composable
 internal fun ScheduleWeatherBadge(modifier: Modifier = Modifier) {
+    // 「显示天气」关掉后，课表顶栏也不再显示天气条
+    if (!rememberWeatherVisible()) return
     val snapshot by WeatherStore.snapshot.collectAsState()
     // 与今日卡一致：没有可用的实况就不画
     val weather = snapshot?.toCardData() ?: return
@@ -57,10 +60,10 @@ internal fun ScheduleWeatherBadge(modifier: Modifier = Modifier) {
         )
         Text(
             text = "${weather.temperature.toInt()}°",
-            style = MiuixTheme.textStyles.body2,
+            style = NexioTheme.textStyles.body2,
             fontSize = 17.sp,
             fontWeight = FontWeight.Medium,
-            color = MiuixTheme.colorScheme.onSurface,
+            color = NexioTheme.colorScheme.onSurface,
             maxLines = 1,
         )
         weather.alert?.let { alert ->

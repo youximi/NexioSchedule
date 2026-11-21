@@ -26,8 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -39,26 +39,27 @@ import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenu
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenuItem
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownShadowPadding
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.chedule.ui.components.LocalChromeStartInset
 import com.haooz.chedule.ui.components.tabletNavRailStartPadding
-import com.haooz.chedule.ui.theme.rememberAppThemeController
+import com.haooz.chedule.ui.theme.AppNexioTheme
+import com.haooz.chedule.ui.theme.rememberAppThemeColors
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.LocalHostNavigation
 import com.haooz.chedule.ui.utils.LocalNativeTopBarHost
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.haooz.softglass.backdrop.GlassBackdrop
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.FastForward
-import top.yukonga.miuix.kmp.icon.extended.Background
-import top.yukonga.miuix.kmp.icon.extended.Backup
-import top.yukonga.miuix.kmp.icon.extended.More
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
-import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.basic.FastForward
+import com.haooz.nexioui.icon.extended.Background
+import com.haooz.nexioui.icon.extended.Backup
+import com.haooz.nexioui.icon.extended.More
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBar
+import com.haooz.nexioui.progressiveblurtopbar.ProgressiveBlurTopBar
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topbarmaterial.rememberTopBarMaterialState
+import com.haooz.nexioui.theme.NexioTheme
 
 /** 页面内「更多」菜单的宿主状态：菜单随页面一起绘制，不再由外层 popup 槽按 pager 位移追顶栏。 */
 class PageMoreMenuState(
@@ -163,7 +164,7 @@ internal fun MorePopupMenus(
                 onDismiss = onMorePopupDismiss,
                 onBackProgress = onMoreBackProgress,
                 onBackCancelled = onMoreBackCancelled,
-                triggerIcon = MiuixIcons.More,
+                triggerIcon = NexioIcons.More,
                 triggerContentDescription = CommonStr.more(),
                 onExpand = onMorePopupExpand,
                 offsetPx = scheduleMenuOffset,
@@ -187,7 +188,7 @@ internal fun MorePopupMenus(
                 onDismiss = onTodayMorePopupDismiss,
                 onBackProgress = onTodayMoreBackProgress,
                 onBackCancelled = onTodayMoreBackCancelled,
-                triggerIcon = MiuixIcons.More,
+                triggerIcon = NexioIcons.More,
                 triggerContentDescription = CommonStr.more(),
                 onExpand = onTodayMorePopupExpand,
                 offsetPx = todayMenuOffset,
@@ -222,7 +223,7 @@ private fun MoreMenuItems(
             onDismiss()
             onJump()
         },
-        icon = { MenuIcon(MiuixIcons.Basic.FastForward) },
+        icon = { MenuIcon(NexioIcons.Basic.FastForward) },
     )
     if (showCourseManage) {
         LiquidGlassDropdownMenuItem(
@@ -231,7 +232,7 @@ private fun MoreMenuItems(
                 onDismiss()
                 onCourseManage()
             },
-            icon = { MenuIcon(MiuixIcons.Backup) },
+            icon = { MenuIcon(NexioIcons.Backup) },
         )
     }
     LiquidGlassDropdownMenuItem(
@@ -240,7 +241,7 @@ private fun MoreMenuItems(
             onDismiss()
             onEnterCustomize()
         },
-        icon = { MenuIcon(MiuixIcons.Background) },
+        icon = { MenuIcon(NexioIcons.Background) },
     )
 }
 
@@ -249,7 +250,7 @@ private fun MenuIcon(icon: ImageVector) {
     Icon(
         imageVector = icon,
         contentDescription = null,
-        tint = MiuixTheme.colorScheme.onSurface,
+        tint = NexioTheme.colorScheme.onSurface,
         modifier = Modifier.size(23.dp),
     )
 }
@@ -267,8 +268,8 @@ internal fun PageLockedTopBarTheme(
 ) {
     val appDark = rememberAppSettingDark()
     val pageDark = pageForcedDark ?: appDark
-    val controller = rememberAppThemeController(isDark = pageDark)
-    MiuixTheme(controller = controller) {
+    val colors = rememberAppThemeColors(isDark = pageDark)
+    AppNexioTheme(colors = colors) {
         CompositionLocalProvider(LocalForcedDarkTheme provides pageForcedDark) {
             content()
         }
@@ -280,7 +281,7 @@ internal fun PageLockedTopBarTheme(
  *
  * @param visible 隐藏时 alpha 归零但仍参与测量，保证「更多」占位槽首帧就有位置。
  * @param blurResampleKey 采样层重录的指纹；[blurSampleTrack] 为当前采样位移。
- * @param onMoreSlotTop 上报「更多」占位槽顶部（root 坐标 px）。
+ * @param onMoreSlotTop 上报「更多」占位槽坐标，由页面换算成相对页面根的局部坐标。
  * @param titleEndPadding 标题右侧额外内边距，避开折叠屏 iPhone 的竖排原生 tab bar。
  */
 @Composable
@@ -295,7 +296,7 @@ internal fun TodayTopBar(
     visible: Boolean = true,
     blurResampleKey: Int = 0,
     blurSampleTrack: () -> Float = { 0f },
-    onMoreSlotTop: (Float) -> Unit = {},
+    onMoreSlotTop: (LayoutCoordinates) -> Unit = {},
     onMoreMaterial: (Float) -> Unit = {},
     onMoreExpand: () -> Unit = {},
     titleEndPadding: Dp = 0.dp,
@@ -386,19 +387,19 @@ private fun RailTopBarActions(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        LiquidTopBarButton(
+        IconButton(
             onClick = onJumpToDate,
             backdrop = backdrop,
-            icon = MiuixIcons.Basic.FastForward,
+            icon = NexioIcons.Basic.FastForward,
             contentDescription = ChromeStr.jumpToDate(),
             iconSize = 23.dp,
             backdropAlpha = backdropAlpha,
             shadowAlpha = shadowAlpha,
         )
-        LiquidTopBarButton(
+        IconButton(
             onClick = onEnterCustomize,
             backdrop = backdrop,
-            icon = MiuixIcons.Background,
+            icon = NexioIcons.Background,
             contentDescription = ChromeStr.scheduleAppearance(),
             iconSize = 23.dp,
             backdropAlpha = backdropAlpha,
@@ -415,7 +416,7 @@ private fun RailTopBarActions(
 private fun MoreSlotPlaceholder(
     hostOwnsTopRight: Boolean,
     onExpand: () -> Unit,
-    onSlotTop: (Float) -> Unit,
+    onSlotTop: (LayoutCoordinates) -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Spacer(
@@ -434,6 +435,6 @@ private fun MoreSlotPlaceholder(
                         .semantics { contentDescription = CommonStr.more() }
                 }
             )
-            .onGloballyPositioned { onSlotTop(it.positionInRoot().y) }
+            .onGloballyPositioned { onSlotTop(it) }
     )
 }

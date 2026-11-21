@@ -36,6 +36,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.net.toUri
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import com.haooz.chedule.data.platform.NexioLog
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.i18n.AndroidMiscStr
@@ -69,6 +71,8 @@ private const val TOP_MIRROR_COLOR_CLOSE_DELTA = 20
 
 
 private fun pickDominantColor(src: Bitmap, prevColor: Int): Int {
+    // 页面销毁时 onDispose 会回收采样位图，而 PixelCopy 回调可能晚一步才到
+    if (src.isRecycled) return if (prevColor != -1) prevColor else 0xFF808080.toInt()
     val width = src.width
     val height = src.height
     if (width <= 0 || height <= 0) {
@@ -249,7 +253,12 @@ fun rememberAndroidWebHost(
                         window,
                         src,
                         raw,
-                        { result ->
+                        listener@{ result ->
+                            // 位图已被 onDispose 回收：回调还在路上，直接丢弃这一帧
+                            if (raw.isRecycled) {
+                                pixelCopyInFlight.set(false)
+                                return@listener
+                            }
                             if (result == PixelCopy.SUCCESS) {
                                 val target = pickDominantColor(raw, lastTopMirrorColor[0])
                                 lastTopMirrorColor[0] = target
@@ -312,6 +321,21 @@ fun rememberAndroidWebHost(
     LaunchedEffect(Unit) {
         webView.addJavascriptInterface(androidBridge, "AndroidBridge")
         webView.addJavascriptInterface(WebPostBridge(), "WebPostService")
+    }
+    // AI 教务导入：document-start 挂网络记录器。注册必须早于首次 loadUrl，
+    // 否则页面首屏那几个课表接口已经在钩子安装前发完。
+    DisposableEffect(webView, config.netRecorderEnabled) {
+        if (!config.netRecorderEnabled) return@DisposableEffect onDispose {}
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            NexioLog.w("EduNet", "当前 WebView 不支持 document-start，无法记录页面首屏请求")
+            return@DisposableEffect onDispose {}
+        }
+        val handler = WebViewCompat.addDocumentStartJavaScript(
+            webView,
+            EDU_NET_RECORDER_JS,
+            setOf("*"),
+        )
+        onDispose { handler.remove() }
     }
     // 本轮是否已试过切到转发通道；每轮模式切换重置，避免反复重载打转。
     val forwardSwitched = remember { AtomicBoolean(false) }
@@ -514,6 +538,15 @@ fun rememberAndroidWebHost(
 
             override fun evaluateJavascript(js: String) {
                 webView.evaluateJavascript(js, null)
+            }
+
+            override fun evaluateJavascriptWithResult(js: String, onResult: (String?) -> Unit) {
+                // evaluateJavascript 只能在主线程调；AI 工具是从 io 协程里发起的
+                webView.post {
+                    runCatching {
+                        webView.evaluateJavascript(js) { value -> onResult(value) }
+                    }.onFailure { onResult(null) }
+                }
             }
 
             override fun setImportTableId(tableId: String) {

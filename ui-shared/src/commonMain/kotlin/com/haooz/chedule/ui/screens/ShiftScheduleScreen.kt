@@ -31,8 +31,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
@@ -63,17 +63,17 @@ import com.haooz.chedule.ui.utils.schedulePageBackgroundColor
 import com.haooz.chedule.viewmodel.ShiftViewModel
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import com.haooz.chedule.ui.components.sheetContentBottomInset
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
-import top.yukonga.miuix.kmp.overlay.LocalBlurBottomSheetContentExpanded
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.PressFeedbackType
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheet
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheetTablet
+import com.haooz.nexioui.blurbottomsheet.LocalBlurBottomSheetContentExpanded
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.card.PressFeedbackType
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 internal data class ShiftSchedulePageDayRangeKey(
     val week: Int,
@@ -147,7 +147,7 @@ fun ShiftScheduleScreen(
     }
     val moreSlotTopPx = remember { mutableFloatStateOf(0f) }
     val moreMaterialAlpha = remember { mutableFloatStateOf(0f) }
-    val pageRootY = remember { mutableFloatStateOf(0f) }
+    val pageRootCoords = remember { arrayOfNulls<LayoutCoordinates>(1) }
     // 顶栏单独录一层：展开的「更多」菜单采「本页内容 + 本页顶栏」，不会采到自己
     val topBarBackdrop = rememberLayerBackdrop()
     val menuBackdrop = if (wallpaperBackdrop != null) {
@@ -178,7 +178,7 @@ fun ShiftScheduleScreen(
                     Modifier
                 }
             )
-            .onGloballyPositioned { pageRootY.floatValue = it.positionInRoot().y }
+            .onGloballyPositioned { pageRootCoords[0] = it }
     ) {
 
     HorizontalPageSwitch(
@@ -195,14 +195,13 @@ fun ShiftScheduleScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                // 平板侧栏避让：与普通课表页一致，pager 容器保持全屏，每页自己留白
                 .then(LocalPageStartPadding.current)
+                .overScrollVertical()
+                .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
                 .then(
                     if (scheduleScrollBehavior != null) Modifier.nestedScroll(scheduleScrollBehavior.nestedScrollConnection)
                     else Modifier
                 )
-                .overScrollVertical()
-                .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
                 .verticalScroll(scrollState)
                 .padding(
                     top = statusBarHeight +
@@ -272,7 +271,7 @@ fun ShiftScheduleScreen(
 
                 val dividerShape = ContinuousRoundedRectangle(12.dp)
                 val dividerHorizontalPadding = if (isTablet) 24.dp else 4.dp
-                val dividerBaseColor = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHigh
+                val dividerBaseColor = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHigh
                     else if (isDark) Color(0xFF121212) else Color(0xFFF0F0F0)
 
                 @Composable
@@ -287,8 +286,8 @@ fun ShiftScheduleScreen(
                     ) {
                         Text(
                             text = text,
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            style = NexioTheme.textStyles.footnote2,
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
                             textAlign = TextAlign.Center,
                         )
                     }
@@ -328,8 +327,8 @@ fun ShiftScheduleScreen(
                     pressFeedbackType = PressFeedbackType.None,
                     showIndication = true,
                     colors = CardDefaults.defaultColors(
-                        color = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHigh else if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
-                        contentColor = MiuixTheme.colorScheme.onSurface
+                        color = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHigh else if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
+                        contentColor = NexioTheme.colorScheme.onSurface
                     )
                 ) {
                     Column(
@@ -339,15 +338,15 @@ fun ShiftScheduleScreen(
                     ) {
                         Text(
                             text = scheduleName,
-                            style = MiuixTheme.textStyles.body1.copy(fontSize = 17.sp),
+                            style = NexioTheme.textStyles.body1.copy(fontSize = 17.sp),
                             fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.onSurface
+                            color = NexioTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "${course.name}  ${course.timeDisplayTextLocalized()}",
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            style = NexioTheme.textStyles.footnote1,
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions
                         )
                     }
                 }
@@ -383,7 +382,13 @@ fun ShiftScheduleScreen(
                 blurResampleKey = c.blurResampleKey,
                 blurSampleTrack = c.blurSampleTrack,
                 titleEndPadding = c.titleEndPadding,
-                onMoreSlotTop = { moreSlotTopPx.floatValue = it - pageRootY.floatValue },
+                onMoreSlotTop = { slot ->
+                    // 换算成相对页面根的局部坐标，避免外层开洞缩放把「更多」位置算得偏高
+                    val root = pageRootCoords[0]
+                    if (root != null && root.isAttached && slot.isAttached) {
+                        moreSlotTopPx.floatValue = root.localPositionOf(slot, Offset.Zero).y
+                    }
+                },
                 onMoreMaterial = { moreMaterialAlpha.floatValue = it },
                 onMoreExpand = { c.moreMenu?.onExpand?.invoke() },
             )

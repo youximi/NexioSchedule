@@ -18,39 +18,49 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.nexioui.cardexpand.CardExpand
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.data.changelogData
 import com.haooz.chedule.ui.utils.screenWidthDp
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import com.haooz.softglass.shape.continuousBackground
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.ChevronForward
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.card.CardDefaults
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.ChevronForward
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
+
+/** 预加载时先排的条目数：够铺满首屏，剩下的等展开到位再补齐。 */
+private const val ChangelogInitialRows = 4
 
 @Composable
 fun ChangelogScreen(
     scrollBehavior: SharedScrollBehavior? = null,
-    initialExpandCount: Int = 3
+    initialExpandCount: Int = 3,
+    /** 页面已落定（不是翻转中的预加载）：为 false 时只排首屏条目，避免拖慢预加载。 */
+    settled: Boolean = true,
 ) {
 
     val isTablet = screenWidthDp() >= 600
@@ -67,13 +77,31 @@ fun ChangelogScreen(
         }
     }
 
-    val rotations = List(changelogData.size) { index ->
-        val rotation by animateFloatAsState(
-            targetValue = if (expandedStates[index]) 90f else -90f,
-            animationSpec = tween(durationMillis = 200),
-            label = "changelogRotation$index"
+    // 展开到位后再补齐（补齐发生在页面已经静止的时候，看不见）。
+    var renderCount by remember {
+        mutableIntStateOf(if (settled) changelogData.size else ChangelogInitialRows)
+    }
+    LaunchedEffect(settled) {
+        if (settled) renderCount = changelogData.size
+    }
+
+    // 首尾两行的按下态/水波纹要跟着卡片的圆角走，否则点按时会从圆角处露出直角
+    val cardRadius = CardDefaults.CornerRadius
+    val topRowShape = remember(cardRadius) {
+        ContinuousRoundedRectangle(
+            topStart = cardRadius,
+            topEnd = cardRadius,
+            bottomEnd = 0.dp,
+            bottomStart = 0.dp,
         )
-        rotation
+    }
+    val bottomRowShape = remember(cardRadius) {
+        ContinuousRoundedRectangle(
+            topStart = 0.dp,
+            topEnd = 0.dp,
+            bottomEnd = cardRadius,
+            bottomStart = cardRadius,
+        )
     }
 
     Scaffold(
@@ -106,10 +134,24 @@ fun ChangelogScreen(
                     .fillMaxWidth()
                     .continuousBackground(CardDefaults.defaultColors().color, CardDefaults.CornerRadius)
             ) {
-                changelogData.forEachIndexed { index, entry ->
+                changelogData.take(renderCount).forEachIndexed { index, entry ->
+                    // 只为当前可见条目建旋转动画。预加载期只排首屏 4 条，别为全部 42 条
+                    // 各建一份 Animatable + State + 协程；补齐发生在落定后的静止帧。
+                    val rotation by animateFloatAsState(
+                        targetValue = if (expandedStates[index]) 90f else -90f,
+                        animationSpec = tween(durationMillis = 200),
+                        label = "changelogRotation$index",
+                    )
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .then(
+                                when (index) {
+                                    0 -> Modifier.clip(topRowShape)
+                                    renderCount - 1 -> Modifier.clip(bottomRowShape)
+                                    else -> Modifier
+                                }
+                            )
                             .clickable { expandedStates[index] = !expandedStates[index] }
                     ) {
                         Row(
@@ -128,22 +170,22 @@ fun ChangelogScreen(
                                 text = entry.version,
                                 fontSize = 17.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = MiuixTheme.colorScheme.onSurface,
+                                color = NexioTheme.colorScheme.onSurface,
                                 modifier = Modifier.weight(1f)
                             )
                             Text(
                                 text = entry.date,
                                 fontSize = 14.sp,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                color = NexioTheme.colorScheme.onSurfaceVariantActions
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Icon(
-                                imageVector = MiuixIcons.ChevronForward,
+                                imageVector = NexioIcons.ChevronForward,
                                 contentDescription = null,
                                 modifier = Modifier
                                     .size(16.dp)
-                                    .graphicsLayer { rotationZ = rotations[index] },
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                    .graphicsLayer { rotationZ = rotation },
+                                tint = NexioTheme.colorScheme.onSurfaceVariantActions
                             )
                         }
                         CardExpand(visible = expandedStates[index]) {
@@ -156,13 +198,13 @@ fun ChangelogScreen(
                                             text = "• ",
                                             fontSize = 14.sp,
                                             lineHeight = 22.sp,
-                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                            color = NexioTheme.colorScheme.onSurfaceVariantActions
                                         )
                                         Text(
                                             text = change(),
                                             fontSize = 14.sp,
                                             lineHeight = 22.sp,
-                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                             modifier = Modifier.weight(1f)
                                         )
                                     }
@@ -171,14 +213,14 @@ fun ChangelogScreen(
                         }
                     }
 
-                    // 分割线（最后一个不显示）
-                    if (index < changelogData.lastIndex) {
+                    // 分割线（当前渲染的最后一条不显示）
+                    if (index < renderCount - 1) {
                         Spacer(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 18.dp)
                                 .height(0.5.dp)
-                                .background(MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.07f))
+                                .background(NexioTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.07f))
                         )
                     }
                 }

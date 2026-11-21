@@ -265,9 +265,15 @@ object IosCourseNotifier {
         repo: CourseRepository,
     ): List<Notice> {
         val leadMinutes = repo.getPreClassReminderMinutes()
+        val rangeStart = repo.getPreClassReminderStartSection()
+        val rangeEnd = repo.getPreClassReminderEndSection()
         val now = Clock.System.now().toEpochMilliseconds()
         val out = mutableListOf<Notice>()
         resolution.courses.forEachIndexed { index, course ->
+            // 与 Android 共用同一套判定：节次范围 → 时间窗，按课程上课时间过滤（含自定义时间）
+            if (!CourseTimeResolver.isInReminderSections(course, repo, rangeStart, rangeEnd)) {
+                return@forEachIndexed
+            }
             val start = CourseTimeResolver.getStartTime(course, repo) ?: return@forEachIndexed
             val startTime = parseClock(start) ?: return@forEachIndexed
             val endTime = CourseTimeResolver.getEndTime(course, repo)?.let { parseClock(it) }

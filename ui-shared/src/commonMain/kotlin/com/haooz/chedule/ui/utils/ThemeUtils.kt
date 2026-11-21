@@ -1,26 +1,23 @@
 package com.haooz.chedule.ui.utils
 
-import com.haooz.softglass.GlassEnvironment
-
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import com.haooz.chedule.data.appearance.ThemeMode
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.storage.KEY_CHANGED_ANYWHERE
 import com.haooz.chedule.data.storage.getStringOrNull
 import com.haooz.chedule.ui.activities.classschedule.ScheduleViewMode
-import top.yukonga.miuix.kmp.theme.AppSettingDarkBridge
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.theme.platformDynamicColors
-import top.yukonga.miuix.kmp.theme.rememberAppSettingDark as miuixRememberAppSettingDark
+import com.haooz.nexioui.theme.NexioTheme
 
 // 壁纸强制主题：非 null 时 isAppDarkTheme 直接用该值，今日页/课程表页按壁纸亮暗锁定。
-// 别名指向 :miuix 里的同一个 CompositionLocal 实例，调用方无需改动。
-val LocalForcedDarkTheme = top.yukonga.miuix.kmp.theme.LocalForcedDarkTheme
+val LocalForcedDarkTheme = staticCompositionLocalOf<Boolean?> { null }
 
 /**
  * 课程表 / 排班页底色（无壁纸时铺满页面的那一层）。
@@ -28,7 +25,7 @@ val LocalForcedDarkTheme = top.yukonga.miuix.kmp.theme.LocalForcedDarkTheme
  */
 @Composable
 fun schedulePageBackgroundColor(isDark: Boolean): Color =
-    if (MiuixTheme.isDynamicColor) platformDynamicColors(dark = isDark).background
+    if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.background
     else if (isDark) Color(0xFF000000) else Color(0xFFF7F7F7)
 
 /** 无壁纸时课程卡垫底色的不透明度（浮层与网格卡片共用，保持两者观感一致） */
@@ -52,57 +49,76 @@ fun courseCardNoneTierBacking(isDark: Boolean): Color =
     schedulePageBackgroundColor(isDark).copy(alpha = COURSE_CARD_BACKING_ALPHA)
 
 /**
- * 主题亮暗的全局快照，供 draw 阶段这类非组合上下文读取 ——
- * [isAppDarkTheme] 是 `@Composable`，绘制里调不了。由它每次组合后写入。
- * 别名指向 backdrop 的同一实例，保证写入的值就是那边读到的值。
+ * 当前作用域生效的深浅色：页面按壁纸强制的口径优先，否则读应用主题 / 系统。
+ *
+ * 纯读函数，**不写任何全局快照**。
+ * `GlassEnvironment.isDark` 只由 [com.haooz.chedule.ui.theme.CourseScheduleTheme]
+ * 根部唯一写入，供少量 draw 期观感（按压高光 / 阴影）使用。
  */
-
-/**
- * 当前可见主页面背后是否为壁纸，供 draw 阶段读取（理由同 [AppThemeSnapshot]）。
- * 由宿主写入：浅色下高光默认压到 0.05，背后有壁纸时给到 0.1（近白底加白会被截断成白斑）。
- */
-
-/** 当前生效的深浅色；顺带把结果写进 [AppThemeSnapshot] 供 draw 阶段读取 */
 @Composable
-fun isAppDarkTheme(): Boolean {
-    val forced = LocalForcedDarkTheme.current
-    if (forced != null) {
-        SideEffect { GlassEnvironment.update(isDark = forced) }
-        return forced
-    }
-    val dark = rememberAppSettingDark()
-    SideEffect { GlassEnvironment.update(isDark = dark) }
-    return dark
-}
+fun isAppDarkTheme(): Boolean =
+    LocalForcedDarkTheme.current ?: rememberAppSettingDark()
 
 /**
  * App 偏好里的「是否深色」（`theme_mode`：system / light / dark）。
  *
- * 实现在 :miuix（弹窗也要用），数据源由 [installAppSettingDarkBridge] 注入。
+ * 纯读，不写任何全局快照；system 档跟随系统。
  */
 @Composable
-fun rememberAppSettingDark(): Boolean = miuixRememberAppSettingDark()
+fun rememberAppSettingDark(): Boolean {
+    val prefs = remember { AppStorage.store(APP_THEME_PREFS_FILE) }
+    var mode by remember { mutableStateOf(prefs.getString(KEY_THEME_MODE, THEME_MODE_SYSTEM)) }
+    DisposableEffect(prefs) {
+        // iOS 的通知不带 key（传哨兵），必须接受它
+        val token = prefs.registerListener { key ->
+            if (key == KEY_CHANGED_ANYWHERE || key == KEY_THEME_MODE) {
+                mode = prefs.getString(KEY_THEME_MODE, THEME_MODE_SYSTEM)
+            }
+        }
+        onDispose { prefs.unregisterListener(token) }
+    }
+    return when (mode) {
+        THEME_MODE_LIGHT -> false
+        THEME_MODE_DARK -> true
+        else -> isSystemInDarkTheme()
+    }
+}
 
 /**
- * 向 :miuix 注入读 `theme_mode` 的实现。由 [CourseScheduleTheme] 在组合根部调用，
- * 必须在任何 miuix 组件之前。重复调用无副作用。
+ * 全局主题偏好（`app_theme_prefs.theme_mode`）的落盘契约。
+ *
+ * 键名与三档取值只在 [readThemeModePref] 一处读，其它地方别再造字面量：
+ * 改了这里就等于换了持久化格式，用户选择会丢。
  */
-internal fun installAppSettingDarkBridge() {
-    if (AppSettingDarkBridge.read != null) return
-    AppSettingDarkBridge.read = {
-        AppStorage.store("app_theme_prefs").getString("theme_mode", "system")
-    }
-    val subscribe: (onChange: () -> Unit) -> (() -> Unit) = { onChange ->
-        val store = AppStorage.store("app_theme_prefs")
-        // iOS 的通知不带 key（传哨兵），必须接受它
-        val token = store.registerListener { key ->
-            if (key == KEY_CHANGED_ANYWHERE || key == "theme_mode") onChange()
+internal const val APP_THEME_PREFS_FILE = "app_theme_prefs"
+internal const val KEY_THEME_MODE = "theme_mode"
+internal const val THEME_MODE_SYSTEM = "system"
+internal const val THEME_MODE_LIGHT = "light"
+internal const val THEME_MODE_DARK = "dark"
+
+/** 读当前全局主题偏好：system / light / dark。纯读，不写任何全局快照。 */
+internal fun readThemeModePref(): String =
+    AppStorage.store(APP_THEME_PREFS_FILE).getString(KEY_THEME_MODE, THEME_MODE_SYSTEM)
+
+// ── 今日页天气显隐 ───────────────────────────────────────────────────────
+// 与触感反馈共用 app_preferences；键名是落盘契约，改了即丢用户选择。
+// 键名沿用旧值：历史上它同时控制信息卡，现在语义收窄为「只控制天气」。
+const val KEY_TODAY_INFO_CARDS = "today_info_cards_enabled"
+
+/** 关闭后今日页助手卡、课表顶栏都不再显示天气；日期、信息卡与课程不受影响。 */
+@Composable
+fun rememberWeatherVisible(): Boolean {
+    val prefs = remember { AppStorage.store("app_preferences") }
+    var enabled by remember { mutableStateOf(prefs.getBoolean(KEY_TODAY_INFO_CARDS, true)) }
+    DisposableEffect(prefs) {
+        val token = prefs.registerListener { key ->
+            if (key == KEY_CHANGED_ANYWHERE || key == KEY_TODAY_INFO_CARDS) {
+                enabled = prefs.getBoolean(KEY_TODAY_INFO_CARDS, true)
+            }
         }
-        // 取消订阅，否则每次主题重建泄漏一个监听
-        val unsubscribe: () -> Unit = { store.unregisterListener(token) }
-        unsubscribe
+        onDispose { prefs.unregisterListener(token) }
     }
-    AppSettingDarkBridge.subscribe = subscribe
+    return enabled
 }
 
 // ── 课表页「默认主题」档位 ───────────────────────────────────────────────
@@ -149,6 +165,48 @@ fun saveScheduleViewMode(mode: ScheduleViewMode) {
             SCHEDULE_VIEW_MODE_KEY,
             if (mode == ScheduleViewMode.TIMELINE) VIEW_MODE_TIMELINE else VIEW_MODE_WEEK
         )
+    }
+}
+
+// ── 今日页视图模式（周网格 / 时间轴）──────────────────────────────────
+// 与课表页共用 app_theme_prefs 文件但键独立：今日页可以单独开时间轴，课表页保持周视图。
+
+private const val TODAY_VIEW_MODE_KEY = "today_view_mode"
+private const val TODAY_VIEW_WEEK = 0
+private const val TODAY_VIEW_TIMELINE = 1
+
+/** 今日页呈现方式：周网格 / 时间轴（不再提供「跟随课表页」档位）。 */
+enum class TodayViewMode(val prefsValue: Int) {
+    WEEK(TODAY_VIEW_WEEK),
+    TIMELINE(TODAY_VIEW_TIMELINE);
+
+    companion object {
+        fun fromPrefs(value: Int): TodayViewMode? =
+            entries.firstOrNull { it.prefsValue == value }
+    }
+}
+
+/**
+ * 读今日页视图模式。
+ *
+ * 没有存过值时按课表页当前视图初始化（旧版存的是「跟随」-1，也走这条）：
+ * 老用户升级后首屏观感不变，之后再改今日页视图就与课表页解耦。
+ */
+fun loadTodayViewMode(): TodayViewMode =
+    TodayViewMode.fromPrefs(
+        AppStorage.store(SCHEDULE_THEME_PREFS_FILE).getInt(TODAY_VIEW_MODE_KEY, -1)
+    ) ?: run {
+        if (loadScheduleViewMode() == ScheduleViewMode.TIMELINE) {
+            TodayViewMode.TIMELINE
+        } else {
+            TodayViewMode.WEEK
+        }
+    }
+
+/** 写今日页视图模式（课表外观弹窗切换时落盘） */
+fun saveTodayViewMode(mode: TodayViewMode) {
+    AppStorage.store(SCHEDULE_THEME_PREFS_FILE).edit {
+        putInt(TODAY_VIEW_MODE_KEY, mode.prefsValue)
     }
 }
 

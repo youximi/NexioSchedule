@@ -14,6 +14,19 @@ object ReminderStr {
         L("提供下节上课时间、地点等信息，和上课勿扰等操作建议", "Shows next class time, location, and suggestions like in-class Do Not Disturb")
     val reminderLeadTime = L("提前提醒时间", "Reminder Lead Time")
     val minutesN = L("%d分钟", "%d min")
+    val reminderSections = L("提醒节次", "Reminder periods")
+    val allSections = L("全部节次", "All periods")
+    val sectionRangeN = L("第%d-%d节", "Period %d-%d")
+    val sectionRangeFromN = L("第%d节起", "From period %d")
+    val sectionRangeUntilN = L("第1-%d节", "Period 1-%d")
+    val sectionStart = L("起始节", "From")
+    val sectionEnd = L("结束节", "To")
+    val sectionN = L("第%d节", "P%d")
+    val sectionRangeHint =
+        L(
+            "只提醒上课时间在「起始节上课 ~ 结束节下课」之间的课程（含自定义时间的课）",
+            "Reminds only classes starting between the first period's start and the last period's end (custom-time classes included)"
+        )
     val nextDayReminder = L("次日课程提醒", "Next-Day Class Reminder")
     val nextDayReminderSummary =
         L("提供明天课程、首节时间、地点等信息，和定闹钟等操作建议", "Shows tomorrow's classes, first period time and location, with suggestions like setting an alarm")
@@ -58,7 +71,6 @@ object ReminderStr {
     val dynamicIslandLeft = L("灵动岛左侧", "Dynamic Island Left")
     val superIslandRight = L("超级岛右侧", "Super Island Right")
     val dynamicIslandRight = L("灵动岛右侧", "Dynamic Island Right")
-    val inClassIslandRight = L("课中岛右侧", "In-Class Island Right")
     val inClassDynamicIslandRight = L("课中灵动岛右侧", "In-Class Dynamic Island Right")
     val islandAod = L("息屏显示", "Always-On Display")
     val islandAodSummary = L("全天候显示时无效", "No effect with the system Always-On Display")
@@ -78,8 +90,8 @@ object ReminderStr {
     val authorizeShizuku = L("授权 Shizuku", "Authorize Shizuku")
     val shizukuAuthFailed = L("Shizuku 授权失败", "Shizuku authorization failed")
 
-    // 缩略态精简
-    val thumbAbbreviation = L("缩略态精简", "Thumbnail Abbreviation")
+    // 通知精简（缩略态 + 展开态的地点，缩略态的课程名）
+    val thumbAbbreviation = L("通知精简", "Notification Abbreviation")
     val scopeOriginal = L("原始文本", "Original text")
     val scopeClassroom = L("精简地点", "Abbreviate classroom")
     val scopeCourse = L("精简课程", "Abbreviate course")

@@ -15,6 +15,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -32,26 +34,55 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.data.backup.BackupFileController
+import com.haooz.chedule.data.backup.NoopBackupFileController
+import com.haooz.chedule.data.backup.RestoreResult
 import com.haooz.chedule.data.backup.WebDavManager
+import com.haooz.chedule.data.platform.ioDispatcher
+import com.haooz.chedule.data.platform.showToast
+import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.data.util.formatDateTimeMinute
 import com.haooz.chedule.data.util.localDateTimeAt
 import com.haooz.chedule.i18n.AppLanguage
+import com.haooz.chedule.i18n.BackupStr
 import com.haooz.chedule.i18n.MiscStr
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.viewmodel.courseViewModel
+import com.haooz.chedule.viewmodel.scheduleViewModel
+import com.haooz.chedule.viewmodel.settingsViewModel
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.NativeTextField
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import kotlinx.coroutines.withContext
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.nativetextfield.NativeTextField
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
+
+/**
+ * WebDAV 页底部「立即恢复」按钮状态：页面写入，路由 overlay 绘制。
+ *
+ * 玻璃按钮要折射页面内容，必须画在采样层之外，所以不能直接放在页面里。
+ */
+class WebDavBottomActionState {
+    var busy by mutableStateOf<String?>(null)
+    var enabled by mutableStateOf(false)
+    var onClick: (() -> Unit)? = null
+}
+
+/** 已下载、等待确认的云端最新备份。 */
+private class PendingCloudRestore(
+    val backupId: String,
+    val fileName: String,
+    val data: Map<String, Any>,
+)
 
 @Composable
 fun WebDavSettingsScreen(
@@ -59,10 +90,25 @@ fun WebDavSettingsScreen(
     onConnectedChange: (Boolean) -> Unit = {},
     onTestConnectionReady: (() -> Unit) -> Unit = {},
     onHolidayDataChanged: () -> Unit = {},
+    bottomAction: WebDavBottomActionState? = null,
+    backupFileController: BackupFileController = NoopBackupFileController,
 ) {
     val webDavManager = remember { WebDavManager { onHolidayDataChanged() } }
     val coroutineScope = rememberCoroutineScope()
     var listScrollY by remember { mutableIntStateOf(0) }
+
+    val fallbackBottomAction = remember { WebDavBottomActionState() }
+    val action = bottomAction ?: fallbackBottomAction
+    val courseVm = courseViewModel()
+    val scheduleVm = scheduleViewModel()
+    val settingsVm = settingsViewModel()
+    val scheduleNames by scheduleVm.scheduleNames.collectAsState()
+
+    var loadingCloud by remember { mutableStateOf(false) }
+    var restoring by remember { mutableStateOf(false) }
+    var pendingRestore by remember { mutableStateOf<PendingCloudRestore?>(null) }
+    val snapshotEnabled = BackupCenterPrefs.snapshotBeforeRestore &&
+        backupFileController !== NoopBackupFileController
 
     var serverUrl by remember { mutableStateOf(webDavManager.serverUrl.ifBlank { "https://dav.jianguoyun.com/dav/" }) }
     // 远端备份目录：可任意层级/任意名字；留空 = 直接放服务器根目录
@@ -130,6 +176,92 @@ fun WebDavSettingsScreen(
         onTestConnectionReady(doTestConnection)
     }
 
+    // 立即恢复：先取云端最新一份并下载用于差异预览，确认后再覆盖本机数据
+    val restoreLatest: () -> Unit = {
+        if (!loadingCloud && !restoring) {
+            loadingCloud = true
+            coroutineScope.launch {
+                saveConfig()
+                val listResult = webDavManager.listBackupsResult()
+                val backups = listResult.getOrNull()
+                if (backups == null) {
+                    val message = listResult.exceptionOrNull()?.message ?: MiscStr.connectionFailed()
+                    loadingCloud = false
+                    statusText = message
+                    statusIsError = true
+                    showToast(BackupStr.cloudListFailedN(message))
+                    return@launch
+                }
+                val latest = backups.maxByOrNull { it.backupId }
+                if (latest == null) {
+                    loadingCloud = false
+                    showToast(BackupStr.noCloudBackup())
+                    return@launch
+                }
+                val dataResult = webDavManager.downloadBackupData(latest.backupId)
+                loadingCloud = false
+                dataResult.fold(
+                    onSuccess = { data ->
+                        pendingRestore = PendingCloudRestore(latest.backupId, latest.fileName, data)
+                    },
+                    onFailure = {
+                        showToast(BackupStr.unrecognizedBackupN(it.message ?: BackupStr.formatError()))
+                    },
+                )
+            }
+        }
+    }
+
+    val confirmRestore: () -> Unit = {
+        val pending = pendingRestore
+        if (pending != null && !restoring) {
+            pendingRestore = null
+            restoring = true
+            coroutineScope.launch {
+                if (snapshotEnabled) {
+                    val snapshot = createSnapshot(backupFileController)
+                    if (snapshot.isFailure) {
+                        restoring = false
+                        showToast(
+                            BackupStr.snapshotFailedN(
+                                snapshot.exceptionOrNull()?.message ?: BackupStr.formatError()
+                            )
+                        )
+                        return@launch
+                    }
+                }
+                val result = webDavManager.restoreBackup(pending.backupId, CourseRepository())
+                restoring = false
+                when (result) {
+                    is RestoreResult.Success -> {
+                        withContext(ioDispatcher) {
+                            courseVm.reloadCourses().join()
+                            scheduleVm.refreshScheduleList()
+                            settingsVm.refreshSettings()
+                        }
+                        statusText = BackupStr.restoreSuccess()
+                        statusIsError = false
+                        showToast(BackupStr.restoreSuccess())
+                    }
+
+                    is RestoreResult.Error -> showToast(BackupStr.restoreFailedN(result.message))
+                }
+            }
+        }
+    }
+
+    SideEffect {
+        action.onClick = restoreLatest
+        // 直接看表单而非 isConfigured()：后者读 prefs，输入后要等防抖保存，按钮会迟一拍才亮
+        val configReady = serverUrl.isNotBlank() && username.isNotBlank() && password.isNotBlank()
+        action.enabled = configReady && !loadingCloud && !restoring && !testing
+        action.busy = when {
+            restoring -> BackupStr.restoring()
+            loadingCloud -> BackupStr.loadingBackup()
+            else -> null
+        }
+    }
+
     Scaffold(
         topBar = {}
     ) { paddingValues ->
@@ -185,7 +317,7 @@ fun WebDavSettingsScreen(
                                     modifier = Modifier.weight(1f),
                                     fontSize = 17.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = MiuixTheme.colorScheme.onSurface
+                                    color = NexioTheme.colorScheme.onSurface
                                 )
                                 NativeTextField(
                                     value = serverUrl,
@@ -212,7 +344,7 @@ fun WebDavSettingsScreen(
                                     modifier = Modifier.weight(1f),
                                     fontSize = 17.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = MiuixTheme.colorScheme.onSurface
+                                    color = NexioTheme.colorScheme.onSurface
                                 )
                                 NativeTextField(
                                     value = remotePath,
@@ -238,7 +370,7 @@ fun WebDavSettingsScreen(
                                     modifier = Modifier.weight(1f),
                                     fontSize = 17.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = MiuixTheme.colorScheme.onSurface
+                                    color = NexioTheme.colorScheme.onSurface
                                 )
                                 NativeTextField(
                                     value = username,
@@ -265,7 +397,7 @@ fun WebDavSettingsScreen(
                                     modifier = Modifier.weight(1f),
                                     fontSize = 17.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = MiuixTheme.colorScheme.onSurface
+                                    color = NexioTheme.colorScheme.onSurface
                                 )
                                 NativeTextField(
                                     value = password,
@@ -296,14 +428,14 @@ fun WebDavSettingsScreen(
                             else statusText.ifBlank { MiscStr.noOperationRecord() },
                             fontSize = 14.sp,
                             color = if (statusText.isNotBlank() && statusIsError)
-                                ComposeColor(0xFFF44336) else MiuixTheme.colorScheme.onSurfaceVariantActions
+                                ComposeColor(0xFFF44336) else NexioTheme.colorScheme.onSurfaceVariantActions
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = if (!isConfigured) MiscStr.cloudBackupAfterConfig()
                             else lastSyncText.ifBlank { MiscStr.neverOperated() },
                             fontSize = 12.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions
                         )
                     }
                 }
@@ -313,21 +445,21 @@ fun WebDavSettingsScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         insideMargin = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-                        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surface),
+                        colors = CardDefaults.defaultColors(color = NexioTheme.colorScheme.surface),
                     ) {
                         Column {
                             Text(
                                 text = MiscStr.nutstoreStepsTitle(),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = MiuixTheme.colorScheme.onSurface
+                                color = NexioTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = MiscStr.nutstoreStepsDetail(),
                                 fontSize = 13.sp,
                                 lineHeight = 20.sp,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                color = NexioTheme.colorScheme.onSurfaceVariantActions
                             )
                         }
                     }
@@ -338,21 +470,21 @@ fun WebDavSettingsScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         insideMargin = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-                        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surface),
+                        colors = CardDefaults.defaultColors(color = NexioTheme.colorScheme.surface),
                     ) {
                         Column {
                             Text(
                                 text = MiscStr.backupRestoreNotesTitle(),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = MiuixTheme.colorScheme.onSurface
+                                color = NexioTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = MiscStr.backupRestoreNotesDetail(),
                                 fontSize = 13.sp,
                                 lineHeight = 20.sp,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                color = NexioTheme.colorScheme.onSurfaceVariantActions
                             )
                         }
                     }
@@ -361,4 +493,22 @@ fun WebDavSettingsScreen(
 
         }
     }
+
+    val pending = pendingRestore
+    BackupDialog(
+        show = pending != null,
+        title = BackupStr.restoreFullBackup(),
+        summary = pending?.let {
+            restoreSummary(
+                label = it.fileName,
+                data = it.data,
+                single = null,
+                currentNames = scheduleNames,
+                snapshotEnabled = snapshotEnabled,
+            )
+        }.orEmpty(),
+        confirmLabel = BackupStr.overwriteRestore(),
+        onDismiss = { pendingRestore = null },
+        onConfirm = confirmRestore,
+    )
 }

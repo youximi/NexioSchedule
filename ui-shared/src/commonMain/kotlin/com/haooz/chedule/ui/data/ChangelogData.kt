@@ -11,6 +11,59 @@ data class ChangelogEntry(
 )
 val changelogData = listOf(
     ChangelogEntry(
+        version = "v1.7.3-1120",
+        date = "2026-11-20",
+        changes = listOf(
+            L("新增液态玻璃材质档位，底栏与滑块同步换新","Add a Liquid Glass material tier with a matching bottom bar and sliders"),
+            L("新增对话式 AI 教务导入，导入脚本可保存到云端复用","Add conversational AI academic import with cloud-saved, reusable scripts"),
+            L("新增本地 MCP 服务，可接入超级小爱","Add a local MCP service that plugs into Super Xiao Ai"),
+            L("AI 支持自带模型服务商与 API key，按会话计算次数","Support your own model provider and API key, with per-session quota"),
+            L("重写课表外观页，壁纸与玻璃调节更跟手","Rewrite the timetable appearance page for more responsive wallpaper and glass tuning"),
+            L("优化切页与转场性能，降低每帧开销","Improve page-turn and transition performance with lower per-frame cost"),
+            L("优化课中岛：固定状态、倒计时，地点精简覆盖展开态","Improve the in-class island with pinned state, countdown and shortened locations"),
+            L("优化天气页雨雪霜效果与整页流光","Improve rain, snow and frost effects plus the flowing background on the weather page"),
+            L("教务索引接入 edu-ai-dock，与拾光索引合并展示","Integrate edu-ai-dock and merge it with the Shiguang academic index"),
+            L("修复 AI 导入网页采色崩溃等问题","Fix crashes when sampling colors from pages during AI import"),
+        )
+    ),
+    ChangelogEntry(
+        version = "v1.7.2-1116",
+        date = "2026-11-16",
+        changes = listOf(
+            L("新增全新应用启动引导，引导页接管隐私政策同意","Add a brand-new app onboarding flow that also takes over privacy consent"),
+            L("更新应用隐私政策至 v2.0","Update the privacy policy to v2.0"),
+            L("优化课表卡片的地点与教师按剩余高度自动换行","Improve the classroom and teacher lines on course cards so they wrap based on the remaining height"),
+            L("修复课前提醒的节次范围按上课时间窗判断","Fix the period range of class reminders to follow the class time window"),
+            L("修复节次空区间导致的闪退","Fix a crash caused by an empty period range"),
+            L("修复部分手表连接超时，支持更多设备推送","Fix connection timeouts on some watches and support more devices"),
+            L("修复 iOS 冷启动未应用已保存的深色模式","Fix iOS not applying the saved dark mode on cold launch"),
+        )
+    ),
+    ChangelogEntry(
+        version = "v1.7.1-1115",
+        date = "2026-11-15",
+        changes = listOf(
+            L("新增今日页天气卡片隐藏开关", "Add a toggle to hide the weather card on the Today page"),
+            L("新增上课提醒按节次范围过滤", "Add period-range filtering for class reminders"),
+            L("新增学期课表预览页保存为固定比例图片", "Add saving the semester timetable preview as a fixed-ratio image"),
+            L("反馈与开发进度新增说明、官方回复展示优化", "Add descriptions to feedback and roadmap items, and improve official reply display"),
+            L("优化天气页昼夜变化的整页流光背景、半透明玻璃卡片，新增雨、雪、霜动态效果", "Improve the weather page with a full-page flowing background that follows day and night, half-transparent glass cards, and new rain, snow and frost effects"),
+            L("优化时间轴视图可与课表视图独立", "Improve the timeline view so it can be switched independently from the timetable view"),
+            L("重做更新页版本卡视觉与动效", "Redesign the version card visuals and animations on the update page"),
+            L("重写页面形变与背景缩放动画", "Rewrite the page morph and background scale animations"),
+            L("优化课程表翻页与玻璃重绘性能", "Improve timetable page-turn and glass redraw performance"),
+            L("优化课程卡片排版", "Improve course card layout"),
+            L("应用材质默认档位改为柔光玻璃", "Set the default app material tier to Soft Glass"),
+            L("优化本地备份，支持文件夹选择", "Improve local backup with folder selection"),
+            L("恢复云端备份的入口移至 WebDAV 页", "Move the restore-from-cloud entry to the WebDAV page"),
+            L("修复柔光玻璃卡片不跟随壁纸亮度调节", "Fix Soft Glass cards not following wallpaper brightness adjustments"),
+            L("修复切换深浅色主题时玻璃材质不跟随", "Fix glass material not updating when switching between light and dark themes"),
+            L("修复部分 WebDAV 服务端解析失败", "Fix parsing failures on some WebDAV servers"),
+            L("修复长文本输入时光标跳动", "Fix the cursor jumping during long text input"),
+            L("修复顶栏按钮材质回弹残留问题", "Fix lingering material rebound on top bar buttons"),
+        )
+    ),
+    ChangelogEntry(
         version = "v1.7.0-1113",
         date = "2026-11-13",
         changes = listOf(

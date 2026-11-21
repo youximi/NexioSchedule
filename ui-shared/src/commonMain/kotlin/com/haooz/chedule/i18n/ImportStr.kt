@@ -209,4 +209,96 @@ Reply strictly in this format and do not add any other text."""
     )
     val bridgeParseComboFailed = L("组合作息解析失败：%s", "Failed to parse combo routines: %s")
     val bridgeComboNoPublicSchedules = L("组合作息没有 publicSchedules", "Combo routines have no publicSchedules")
+
+    // ── AI 教务导入：模型自己读页面 / 打接口 / 写脚本 ──
+    val aiEduImportTitle = L("AI 教务导入", "AI academic import")
+    val aiEduStart = L("开始分析", "Analyze")
+    /** 收起对话去网页里操作后，从底栏回到同一段对话（不是重新开始） */
+    val aiEduResumeChat = L("继续对话", "Resume chat")
+    /** 输入地址命中本地适配时，底部弹窗里继续走 AI 的入口 */
+    val aiEduContinue = L("继续AI教务导入", "Continue with AI import")
+    val aiEduResumeHint = L("已收起对话，点这里继续", "Chat hidden, tap to resume")
+    val aiEduStop = L("停止", "Stop")
+    val aiEduFailed = L("这次没成", "Didn't work this time")
+    val aiEduParseFailed = L("课程数据解析失败", "Failed to parse course data")
+    val aiEduReplyHint = L("补充缺失的信息", "Add the missing information")
+    val aiEduSend = L("发送", "Send")
+    val aiEduNeedUrl = L("先填一个教务系统地址", "Enter your academic system address first")
+    val aiEduUrlHint = L(
+        "填写学校教务导入地址后打开教务系统，登录教务系统后进入课表页面再点击开始分析\n" +
+            "AI自动开始分析页面与接口，撰写脚本",
+        "Enter your school's academic system address and open it, sign in, go to the timetable page, " +
+            "then tap Analyze.\nAI then reads the page and APIs and writes the adapter script.",
+    )
+    val aiEduUrlLabel = L("教务系统地址", "Academic system address")
+    val aiEduOpen = L("打开", "Open")
+    val aiEduEntrySubtitle = L(
+        "AI自动开始分析页面与接口，撰写脚本",
+        "AI reads the page and APIs and writes the adapter script",
+    )
+
+    // ── AI 教务导入：三个阶段（网页 / 对话 / 预览） ──
+    /** 底栏说明：告诉用户分析前要先把课表页翻出来 */
+    val aiEduDockHint = L("请先打开课表页面再分析", "Open your timetable page first, then analyze")
+
+    val aiEduStatusRunning = L("思考中 · %s", "Thinking · %s")
+    val aiEduStatusDone = L("已完成 · %s · %d 步", "Done · %s · %d steps")
+    /** 模型自己说完了、但没拿到课程（例如在等用户补充）：不是「停止」 */
+    val aiEduStatusIdle = L("已结束 · %s", "Finished · %s")
+
+    /** 思考块的标题：括号里是这一轮的耗时 */
+    val aiEduThinkingBlock = L("思考 %s", "Thought for %s")
+    /** 流式思考中（正文还在增长） */
+    val aiEduThinkingStreaming = L("思考中…", "Thinking…")
+    val aiEduExpand = L("展开", "Expand")
+    val aiEduCollapse = L("收起", "Collapse")
+
+    val aiEduQueuedNote = L("%d 条补充已排队，下一个动作前送达", "%d queued, sent before the next step")
+    val aiEduSteer = L("引导", "Steer")
+    val aiEduSteerHint = L("补充要求（下一步前送达）", "Add guidance (sent before the next step)")
+
+    val aiEduPreviewActionN = L("查看预览（%d 门课）", "Preview %d courses")
+    val aiEduPreviewTitle = L("导入预览", "Import preview")
+    val aiEduPreviewEmpty = L("没有可预览的课程", "No courses to preview")
+    /** 预览页提示：同课的连续节次与重复记录已在解析期合并 */
+    fun aiEduPreviewMergedN(count: Int): String =
+        L("已合并 %d 条课程记录（重复或连续节次）", "Merged %d course entries (duplicates or consecutive periods)")(count)
+    /** 预览页提示：缺少上课星期/节次/周次的课被跳过（不猜默认值） */
+    fun aiEduPreviewSkippedN(count: Int): String = L(
+        "已跳过 %d 门课程：缺少上课星期、节次或周次",
+        "Skipped %d courses: missing weekday, period or weeks",
+    )(count)
+    /** 草稿一门都用不了：告诉用户是「信息缺失被跳过」而不是「解析失败」 */
+    fun aiEduDraftNothingUsable(count: Int): String = L(
+        "有 %d 门课程缺少上课星期、节次或周次，已全部跳过；请让 AI 补齐后再预览",
+        "%d courses are missing weekday, period or weeks and were skipped; ask the AI to fill them in",
+    )(count)
+    /** 追加导入时全部课程都已在课表里 */
+    val aiEduAppendNothingNew = L("没有新增课程：这些课都已在课表里", "Nothing new: these courses already exist")
+    val aiEduImportDialogTitle = L("导入到选定的课表？", "Import into the selected schedule?")
+    val aiEduTargetSchedule = L("导入到课表", "Import into")
+    /** 确认弹窗摘要：目标课表原有门数 → 导入门数 */
+    fun aiEduImportTargetSummary(name: String, existing: Int, incoming: Int): String =
+        L("「%s」现有 %d 门 → 导入 %d 门", "\"%s\" has %d courses → import %d")(name, existing, incoming)
+    val aiEduSchoolLabel = L("学校名称", "School name")
+    val aiEduSchoolHint = L(
+        "导入后会把这次生成的脚本上传到服务器，同类教务系统的同学可以直接复用",
+        "The script will be uploaded so others on the same system can reuse it",
+    )
+    val aiEduCollapseSheet = L("收起", "Collapse")
+    val aiEduBackToChat = L("返回对话", "Back to chat")
+
+    // ── AI 教务导入：脚本历史 ──
+    val aiEduHistory = L("历史", "History")
+    val aiEduHistoryTitle = L("AI 教务导入历史", "AI Import History")
+    val aiEduHistoryEmpty = L("还没有 AI 生成过脚本", "No AI-generated scripts yet")
+    val aiEduHistoryEmptyHint = L(
+        "完成一次 AI 教务导入后，每个脚本都会留在这里",
+        "Every script from an AI import will be kept here",
+    )
+    val aiEduHistoryViewScript = L("查看脚本", "View script")
+    val aiEduHistoryHideScript = L("收起脚本", "Hide script")
+    val aiEduHistorySuccess = L("成功 · %d 门课", "OK · %d courses")
+    val aiEduHistoryFailed = L("未跑通", "Failed")
+    val aiEduHistoryNoNote = L("没有说明", "No note")
 }

@@ -37,6 +37,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.ColorFilter
@@ -68,14 +69,15 @@ import com.haooz.chedule.i18n.TimeEditStr
 import com.haooz.chedule.i18n.orDefaultName
 import com.haooz.chedule.ui.activities.classschedule.SpecialItemsEditorSection
 import com.haooz.chedule.ui.activities.classschedule.describeSpecialDays
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.nexioui.iconbutton.IconButton
+import com.haooz.nexioui.cardexpand.CardExpand
 import com.haooz.chedule.ui.components.text.material.Text as Text
-import com.haooz.chedule.ui.effects.motion.morphClip
-import com.haooz.chedule.ui.effects.motion.rememberMorphTransition
+import com.haooz.nexioui.motion.morphClip
+import com.haooz.nexioui.motion.rememberMorphTransition
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.NativeDocumentAction
 import com.haooz.chedule.ui.utils.NativeDocumentEditorChrome
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.NativeDocumentEditorEffect
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.TransitionLayerImage
@@ -85,33 +87,33 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.softglass.backdrop.backdrops.LayerBackdrop
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
-import kotlinx.datetime.Clock
-import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
-import top.yukonga.miuix.kmp.basic.NumberPicker
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.Switch
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.Delete
-import top.yukonga.miuix.kmp.icon.extended.Ok
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
-import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.preference.ArrowPreference
+import kotlin.time.Clock
+import com.haooz.nexioui.button.Button
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.textfield.TextField
+import com.haooz.nexioui.numberpicker.NumberPicker
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.switch.Switch
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Close
+import com.haooz.nexioui.icon.extended.Delete
+import com.haooz.nexioui.icon.extended.Ok
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBar
+import com.haooz.nexioui.progressiveblurtopbar.ProgressiveBlurTopBar
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.topappbar.rememberSharedScrollBehavior
+import com.haooz.nexioui.topbarmaterial.rememberTopBarMaterialState
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.arrowpreference.ArrowPreference
 import com.haooz.softglass.shape.continuousSurface
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 private fun parseTimeRange(timeStr: String): Pair<Pair<Int, Int>, Pair<Int, Int>> {
     return try {
@@ -216,7 +218,9 @@ fun TimeConfigEditScreen(
     isFabCreation: Boolean = false,
     /** 删除当前作息并回到一级列表（宿主负责落库与刷新列表） */
     onDeleteRoutine: (Long) -> Unit = {},
-    liquidGlassBackdrop: LayerBackdrop? = null
+    liquidGlassBackdrop: LayerBackdrop? = null,
+    /** false = 先停在起点卡态，等宿主持源卡藏掉、整页快照上屏后再放行展开 */
+    morphStarted: Boolean = true,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val focusManager = LocalFocusManager.current
@@ -321,6 +325,8 @@ fun TimeConfigEditScreen(
         onBack = onBack,
         // 对话框开着时返回只回弹页面，不关页
         interceptBack = { showTimeDialog || showQuickItemDialog },
+        autoStart = morphStarted,
+        predictiveBackEnabled = { PredictiveBackSettings.enabled },
     )
 
     fun triggerExitAndBack(onSavePending: (() -> Unit)? = null) {
@@ -520,21 +526,23 @@ fun TimeConfigEditScreen(
     val isTablet = isTabletWidth()
     val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
 
-    val s = morph.state.value
-
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                if (isDark) ComposeColor(0xFF2C2C2C).copy(alpha = s.bgAlpha)
-                else ComposeColor.Black.copy(alpha = s.bgAlpha)
-            )
+            .drawBehind {
+                val alpha = morph.state.value.bgAlpha
+                drawRect(
+                    if (isDark) ComposeColor(0xFF2C2C2C).copy(alpha = alpha)
+                    else ComposeColor.Black.copy(alpha = alpha)
+                )
+            }
             .pointerInput(Unit) { }
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
+                    val s = morph.state.value
                     clip = false
                     transformOrigin = TransformOrigin(s.anchorX, 0.5f)
                     scaleX = s.scale
@@ -544,18 +552,22 @@ fun TimeConfigEditScreen(
                 }
                 .morphClip(morph)
                 .background(
-                    if (isFabCreation) MiuixTheme.colorScheme.primary
-                    else MiuixTheme.colorScheme.background
+                    if (isFabCreation) NexioTheme.colorScheme.primary
+                    else NexioTheme.colorScheme.background
                 )
         ) {
-            if (cardSnapshot != null && s.snapshotAlpha > 0f) {
+            if (cardSnapshot != null) {
                 TransitionLayerImage(
                     snapshot = cardSnapshot,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .fillMaxWidth()
-                        .clip(ContinuousRoundedRectangle((cardStartCornerRadius / s.scale).dp))
-                        .graphicsLayer { alpha = s.snapshotAlpha },
+                        .graphicsLayer {
+                            val s = morph.state.value
+                            shape = ContinuousRoundedRectangle((cardStartCornerRadius / s.scale).dp)
+                            clip = true
+                            alpha = s.snapshotAlpha
+                        },
                     contentScale = ContentScale.FillWidth
                 )
             }
@@ -563,7 +575,7 @@ fun TimeConfigEditScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { alpha = s.contentAlpha }
+                    .graphicsLayer { alpha = morph.state.value.contentAlpha }
             ) {
                 Scaffold(
                     topBar = {
@@ -585,13 +597,13 @@ fun TimeConfigEditScreen(
                                 materialState = material,
                                 contentPadding = {},
                                 startAction = if (usesNativeControls) null else { backdropAlpha, shadowAlpha ->
-                                    LiquidTopBarButton(
+                                    IconButton(
                                         onClick = {
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                             triggerExitAndBack()
                                         },
                                         backdrop = liquidGlassBackdrop,
-                                        icon = MiuixIcons.Normal.Close,
+                                        icon = NexioIcons.Normal.Close,
                                         contentDescription = CommonStr.cancel(),
                                         iconSize = 24.dp,
                                         backdropAlpha = backdropAlpha,
@@ -599,10 +611,10 @@ fun TimeConfigEditScreen(
                                     )
                                 },
                                 endAction = if (usesNativeControls) null else { backdropAlpha, shadowAlpha ->
-                                    LiquidTopBarButton(
+                                    IconButton(
                                         onClick = { requestSave() },
                                         backdrop = liquidGlassBackdrop,
-                                        icon = MiuixIcons.Ok,
+                                        icon = NexioIcons.Ok,
                                         contentDescription = TimeEditStr.saveAndClose(),
                                         iconSize = 25.dp,
                                         backdropAlpha = backdropAlpha,
@@ -637,11 +649,11 @@ fun TimeConfigEditScreen(
 
                         Card(
                             modifier = Modifier.fillMaxSize()
-                                .background(MiuixTheme.colorScheme.surface),
+                                .background(NexioTheme.colorScheme.surface),
                             insideMargin = PaddingValues(0.dp),
                             colors = CardDefaults.defaultColors(
-                                color = MiuixTheme.colorScheme.surface,
-                                contentColor = MiuixTheme.colorScheme.onSurface
+                                color = NexioTheme.colorScheme.surface,
+                                contentColor = NexioTheme.colorScheme.onSurface
                             )
                         ) {
                             val topBarHeightDp = with(density) {
@@ -666,7 +678,7 @@ fun TimeConfigEditScreen(
                             ) {
                                 item(key = "config_name") {
                                     SmallTitle(text = TimeCfgStr.routineNameLabel())
-                                    NativeMiuixTextField(
+                                    TextField(
                                         value = routineName,
                                         onValueChange = { routineName = it },
                                         label = TimeEditStr.routineNamePlaceholder(),
@@ -714,7 +726,7 @@ fun TimeConfigEditScreen(
                                         label = "bottomStart"
                                     )
                                     val cardModifier = Modifier.fillMaxWidth().continuousSurface(
-                                        color = MiuixTheme.colorScheme.secondaryVariant,
+                                        color = NexioTheme.colorScheme.secondaryVariant,
                                         topStart = 20.dp,
                                         topEnd = 20.dp,
                                         bottomEnd = bottomEndRadius,
@@ -739,7 +751,7 @@ fun TimeConfigEditScreen(
                                                     TimeEditStr.quickTimeSettings(),
                                                     fontSize = 17.sp,
                                                     fontWeight = FontWeight.Medium,
-                                                    color = MiuixTheme.colorScheme.onSurface
+                                                    color = NexioTheme.colorScheme.onSurface
                                                 )
                                                 Switch(
                                                     checked = quickExpanded,
@@ -753,7 +765,7 @@ fun TimeConfigEditScreen(
                                                             Text(
                                                                 TimeEditStr.minutesN(classDuration),
                                                                 fontSize = 14.5.sp,
-                                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                                                color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                                                 textAlign = TextAlign.End,
                                                             )
                                                         },
@@ -771,7 +783,7 @@ fun TimeConfigEditScreen(
                                                             Text(
                                                                 TimeEditStr.minutesN(shortBreak),
                                                                 fontSize = 14.5.sp,
-                                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                                                color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                                                 textAlign = TextAlign.End,
                                                             )
                                                         },
@@ -797,7 +809,7 @@ fun TimeConfigEditScreen(
                                                             TimeEditStr.longBreakTitle(),
                                                             fontSize = 17.sp,
                                                             fontWeight = FontWeight.Medium,
-                                                            color = MiuixTheme.colorScheme.onSurface
+                                                            color = NexioTheme.colorScheme.onSurface
                                                         )
                                                         Switch(
                                                             checked = longBreakEnabled,
@@ -813,7 +825,7 @@ fun TimeConfigEditScreen(
                                                                     Text(
                                                                         TimeEditStr.afterSectionMinutesN(longBreakMorningSection, longBreakMorning),
                                                                         fontSize = 14.5.sp,
-                                                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                                                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                                                         textAlign = TextAlign.End,
                                                                     )
                                                                 },
@@ -832,7 +844,7 @@ fun TimeConfigEditScreen(
                                                                     Text(
                                                                         TimeEditStr.afterSectionMinutesN(longBreakAfternoonSection, longBreakAfternoon),
                                                                         fontSize = 14.5.sp,
-                                                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                                                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                                                         textAlign = TextAlign.End,
                                                                     )
                                                                 },
@@ -851,7 +863,7 @@ fun TimeConfigEditScreen(
                                                                     Text(
                                                                         TimeEditStr.afterSectionMinutesN(longBreakEveningSection, longBreakEvening),
                                                                         fontSize = 14.5.sp,
-                                                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                                                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                                                         textAlign = TextAlign.End,
                                                                     )
                                                                 },
@@ -875,7 +887,7 @@ fun TimeConfigEditScreen(
                                                                     morningStartMinute
                                                                 ),
                                                                 fontSize = 14.5.sp,
-                                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                                                color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                                                 textAlign = TextAlign.End,
                                                             )
                                                         },
@@ -897,7 +909,7 @@ fun TimeConfigEditScreen(
                                                                     afternoonStartMinute
                                                                 ),
                                                                 fontSize = 14.5.sp,
-                                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                                                color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                                                 textAlign = TextAlign.End,
                                                             )
                                                         },
@@ -919,7 +931,7 @@ fun TimeConfigEditScreen(
                                                                     eveningStartMinute
                                                                 ),
                                                                 fontSize = 14.5.sp,
-                                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                                                color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                                                 textAlign = TextAlign.End,
                                                             )
                                                         },
@@ -932,7 +944,7 @@ fun TimeConfigEditScreen(
                                                         },
                                                         holdDownState = showQuickItemDialog && quickEditType == "start_evening"
                                                     )
-                                                    TextButton(
+                                                    FlatTextButton(
                                                         text = TimeEditStr.apply(),
                                                         onClick = {
                                                             hapticFeedback.performHapticFeedback(
@@ -1014,7 +1026,7 @@ fun TimeConfigEditScreen(
                                                         Text(
                                                             formatTimeRangeForDisplay(timeStr),
                                                             fontSize = 14.5.sp,
-                                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                                             textAlign = TextAlign.End,
                                                         )
                                                     },
@@ -1054,7 +1066,7 @@ fun TimeConfigEditScreen(
                                                         Text(
                                                             formatTimeRangeForDisplay(timeStr),
                                                             fontSize = 14.5.sp,
-                                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                                             textAlign = TextAlign.End,
                                                         )
                                                     },
@@ -1094,7 +1106,7 @@ fun TimeConfigEditScreen(
                                                         Text(
                                                             formatTimeRangeForDisplay(timeStr),
                                                             fontSize = 14.5.sp,
-                                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                                             textAlign = TextAlign.End,
                                                         )
                                                     },
@@ -1190,7 +1202,7 @@ fun TimeConfigEditScreen(
                                             ),
                                         ) {
                                             Icon(
-                                                imageVector = MiuixIcons.Delete,
+                                                imageVector = NexioIcons.Delete,
                                                 contentDescription = null,
                                                 modifier = Modifier.size(20.dp),
                                                 tint = destructiveColor
@@ -1244,14 +1256,14 @@ fun TimeConfigEditScreen(
                                             itemHeight = 60.dp,
                                             label = { it.toString().padStart(2, '0') },
                                             wrapAround = true,
-                                            textStyle = MiuixTheme.textStyles.title1,
+                                            textStyle = NexioTheme.textStyles.title1,
                                             modifier = Modifier.weight(1f)
                                         )
                                         Text(
                                             ":",
-                                            style = MiuixTheme.textStyles.title2,
+                                            style = NexioTheme.textStyles.title2,
                                             fontWeight = FontWeight.Bold,
-                                            color = MiuixTheme.colorScheme.onSurface,
+                                            color = NexioTheme.colorScheme.onSurface,
                                             modifier = Modifier.padding().offset(y = (-2).dp)
                                         )
                                         val qMinIdx =
@@ -1264,7 +1276,7 @@ fun TimeConfigEditScreen(
                                             itemHeight = 60.dp,
                                             label = { minuteValues[it].toString().padStart(2, '0') },
                                             wrapAround = true,
-                                            textStyle = MiuixTheme.textStyles.title1,
+                                            textStyle = NexioTheme.textStyles.title1,
                                             modifier = Modifier.weight(1f)
                                         )
                                     }
@@ -1275,7 +1287,8 @@ fun TimeConfigEditScreen(
                                         "long_evening" -> eveningSections
                                         else -> 4
                                     }
-                                    val sectionRange = 1 until sectionCount
+                                    // 该时段只有 0/1 节时 1 until n 是空区间
+                                    val sectionRange = 1..maxOf(1, sectionCount - 1)
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.Center,
@@ -1289,7 +1302,7 @@ fun TimeConfigEditScreen(
                                             itemHeight = 60.dp,
                                             label = { TimeEditStr.afterSectionN(it) },
                                             wrapAround = false,
-                                            textStyle = MiuixTheme.textStyles.title2,
+                                            textStyle = NexioTheme.textStyles.title2,
                                             modifier = Modifier.weight(1f)
                                         )
                                         // 0 = 不休息：大课间与小课间同域，UI 是唯一闸门（数据/计算/序列化三层本就支持 0）
@@ -1309,7 +1322,7 @@ fun TimeConfigEditScreen(
                                             itemHeight = 60.dp,
                                             label = { TimeEditStr.minutesN(breakOptions[it]) },
                                             wrapAround = false,
-                                            textStyle = MiuixTheme.textStyles.title2,
+                                            textStyle = NexioTheme.textStyles.title2,
                                             modifier = Modifier.weight(1f)
                                         )
                                     }
@@ -1328,7 +1341,7 @@ fun TimeConfigEditScreen(
                                         visibleItemCount = 3,
                                         itemHeight = 60.dp,
                                         label = { TimeEditStr.minutesN(options[it]) },
-                                        textStyle = MiuixTheme.textStyles.title2,
+                                        textStyle = NexioTheme.textStyles.title2,
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                 }
@@ -1336,7 +1349,7 @@ fun TimeConfigEditScreen(
                                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    TextButton(
+                                    FlatTextButton(
                                         text = CommonStr.cancel(),
                                         onClick = {
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1344,7 +1357,7 @@ fun TimeConfigEditScreen(
                                         },
                                         modifier = Modifier.weight(1f)
                                     )
-                                    TextButton(
+                                    FlatTextButton(
                                         text = CommonStr.ok(),
                                         onClick = {
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1417,7 +1430,7 @@ fun TimeConfigEditScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                NativeMiuixTextField(
+                                TextField(
                                     value = tempSpecialName,
                                     onValueChange = { tempSpecialName = it },
                                     label = TimeEditStr.specialCourse(),
@@ -1438,14 +1451,14 @@ fun TimeConfigEditScreen(
                                         itemHeight = 60.dp,
                                         label = { it.toString().padStart(2, '0') },
                                         wrapAround = true,
-                                        textStyle = MiuixTheme.textStyles.title2,
+                                        textStyle = NexioTheme.textStyles.title2,
                                         modifier = Modifier.weight(1f)
                                     )
                                     Text(
                                         ":",
-                                        style = MiuixTheme.textStyles.paragraph,
+                                        style = NexioTheme.textStyles.paragraph,
                                         fontWeight = FontWeight.Bold,
-                                        color = MiuixTheme.colorScheme.onSurface,
+                                        color = NexioTheme.colorScheme.onSurface,
                                         modifier = Modifier.padding().offset(y = (-2).dp)
                                     )
                                     val sMinIdx = minuteValues.indexOf(tempSpecialStartMinute).coerceAtLeast(0)
@@ -1457,13 +1470,13 @@ fun TimeConfigEditScreen(
                                         itemHeight = 60.dp,
                                         label = { minuteValues[it].toString().padStart(2, '0') },
                                         wrapAround = true,
-                                        textStyle = MiuixTheme.textStyles.title2,
+                                        textStyle = NexioTheme.textStyles.title2,
                                         modifier = Modifier.weight(1f)
                                     )
                                     Text(
                                         "-",
-                                        style = MiuixTheme.textStyles.title2,
-                                        color = MiuixTheme.colorScheme.onSurface,
+                                        style = NexioTheme.textStyles.title2,
+                                        color = NexioTheme.colorScheme.onSurface,
                                         modifier = Modifier.padding()
                                     )
                                     NumberPicker(
@@ -1474,14 +1487,14 @@ fun TimeConfigEditScreen(
                                         itemHeight = 60.dp,
                                         label = { it.toString().padStart(2, '0') },
                                         wrapAround = true,
-                                        textStyle = MiuixTheme.textStyles.title2,
+                                        textStyle = NexioTheme.textStyles.title2,
                                         modifier = Modifier.weight(1f)
                                     )
                                     Text(
                                         ":",
-                                        style = MiuixTheme.textStyles.paragraph,
+                                        style = NexioTheme.textStyles.paragraph,
                                         fontWeight = FontWeight.Bold,
-                                        color = MiuixTheme.colorScheme.onSurface,
+                                        color = NexioTheme.colorScheme.onSurface,
                                         modifier = Modifier.padding().offset(y = (-2).dp)
                                     )
                                     val eMinIdx = minuteValues.indexOf(tempSpecialEndMinute).coerceAtLeast(0)
@@ -1493,7 +1506,7 @@ fun TimeConfigEditScreen(
                                         itemHeight = 60.dp,
                                         label = { minuteValues[it].toString().padStart(2, '0') },
                                         wrapAround = true,
-                                        textStyle = MiuixTheme.textStyles.title2,
+                                        textStyle = NexioTheme.textStyles.title2,
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
@@ -1503,7 +1516,7 @@ fun TimeConfigEditScreen(
                                     Text(
                                         text = TimeEditStr.weekdaySchedule(),
                                         fontSize = 15.sp,
-                                        color = MiuixTheme.colorScheme.onBackground,
+                                        color = NexioTheme.colorScheme.onBackground,
                                         modifier = Modifier.padding(start = 12.dp)
                                     )
                                     SpecialItemsEditorSection(
@@ -1523,7 +1536,7 @@ fun TimeConfigEditScreen(
                                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    TextButton(
+                                    FlatTextButton(
                                         text = CommonStr.cancel(),
                                         onClick = {
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1531,7 +1544,7 @@ fun TimeConfigEditScreen(
                                         },
                                         modifier = Modifier.weight(1f)
                                     )
-                                    TextButton(
+                                    FlatTextButton(
                                         text = CommonStr.save(),
                                         onClick = {
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1540,7 +1553,7 @@ fun TimeConfigEditScreen(
                                             // 结束不晚于开始按跨午夜处理（次日结束），只有起止完全相同才是无效输入
                                             if (startMinutes == endMinutes) {
                                                 showToast(CourseEditStr.timeSameError())
-                                                return@TextButton
+                                                return@FlatTextButton
                                             }
                                             val startStr = formatHhMm(tempSpecialStartHour, tempSpecialStartMinute)
                                             val endStr = formatHhMm(tempSpecialEndHour, tempSpecialEndMinute)
@@ -1584,7 +1597,7 @@ fun TimeConfigEditScreen(
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     Image(
-                                        imageVector = MiuixIcons.Delete,
+                                        imageVector = NexioIcons.Delete,
                                         contentDescription = CommonStr.delete(),
                                         colorFilter = ColorFilter.tint(Color(0xFFF44336)),
                                         modifier = Modifier.size(23.dp),
@@ -1605,7 +1618,7 @@ fun TimeConfigEditScreen(
                                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                TextButton(
+                                FlatTextButton(
                                     CommonStr.cancel(),
                                     {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1613,7 +1626,7 @@ fun TimeConfigEditScreen(
                                     },
                                     modifier = Modifier.weight(1f)
                                 )
-                                TextButton(
+                                FlatTextButton(
                                     CommonStr.delete(),
                                     {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1646,7 +1659,7 @@ fun TimeConfigEditScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                NativeMiuixTextField(
+                                TextField(
                                     value = tempSectionName,
                                     onValueChange = { tempSectionName = it },
                                     label = TimeEditStr.customSectionName(),
@@ -1659,7 +1672,7 @@ fun TimeConfigEditScreen(
                                             fontSize = 14.2.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = if (nameCount > 2) ComposeColor(0xFFF44336)
-                                            else MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                            else NexioTheme.colorScheme.onSurfaceVariantActions,
                                             modifier = Modifier.padding(end = 16.dp),
                                             textAlign = TextAlign.Center,
                                         )
@@ -1680,14 +1693,14 @@ fun TimeConfigEditScreen(
                                         itemHeight = 60.dp,
                                         label = { it.toString().padStart(2, '0') },
                                         wrapAround = true,
-                                        textStyle = MiuixTheme.textStyles.title2,
+                                        textStyle = NexioTheme.textStyles.title2,
                                         modifier = Modifier.weight(1f)
                                     )
                                     Text(
                                         ":",
-                                        style = MiuixTheme.textStyles.paragraph,
+                                        style = NexioTheme.textStyles.paragraph,
                                         fontWeight = FontWeight.Bold,
-                                        color = MiuixTheme.colorScheme.onSurface,
+                                        color = NexioTheme.colorScheme.onSurface,
                                         modifier = Modifier.padding().offset(y = (-2).dp)
                                     )
                                     val sMinIdx =
@@ -1700,13 +1713,13 @@ fun TimeConfigEditScreen(
                                         itemHeight = 60.dp,
                                         label = { minuteValues[it].toString().padStart(2, '0') },
                                         wrapAround = true,
-                                        textStyle = MiuixTheme.textStyles.title2,
+                                        textStyle = NexioTheme.textStyles.title2,
                                         modifier = Modifier.weight(1f)
                                     )
                                     Text(
                                         "-",
-                                        style = MiuixTheme.textStyles.title2,
-                                        color = MiuixTheme.colorScheme.onSurface,
+                                        style = NexioTheme.textStyles.title2,
+                                        color = NexioTheme.colorScheme.onSurface,
                                         modifier = Modifier.padding()
                                     )
                                     NumberPicker(
@@ -1717,14 +1730,14 @@ fun TimeConfigEditScreen(
                                         itemHeight = 60.dp,
                                         label = { it.toString().padStart(2, '0') },
                                         wrapAround = true,
-                                        textStyle = MiuixTheme.textStyles.title2,
+                                        textStyle = NexioTheme.textStyles.title2,
                                         modifier = Modifier.weight(1f)
                                     )
                                     Text(
                                         ":",
-                                        style = MiuixTheme.textStyles.paragraph,
+                                        style = NexioTheme.textStyles.paragraph,
                                         fontWeight = FontWeight.Bold,
-                                        color = MiuixTheme.colorScheme.onSurface,
+                                        color = NexioTheme.colorScheme.onSurface,
                                         modifier = Modifier.padding().offset(y = (-2).dp)
                                     )
                                     val eMinIdx =
@@ -1737,7 +1750,7 @@ fun TimeConfigEditScreen(
                                         itemHeight = 60.dp,
                                         label = { minuteValues[it].toString().padStart(2, '0') },
                                         wrapAround = true,
-                                        textStyle = MiuixTheme.textStyles.title2,
+                                        textStyle = NexioTheme.textStyles.title2,
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
@@ -1745,7 +1758,7 @@ fun TimeConfigEditScreen(
                                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    TextButton(
+                                    FlatTextButton(
                                         text = CommonStr.cancel(),
                                         onClick = {
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1753,7 +1766,7 @@ fun TimeConfigEditScreen(
                                         },
                                         modifier = Modifier.weight(1f)
                                     )
-                                    TextButton(
+                                    FlatTextButton(
                                         text = CommonStr.ok(),
                                         enabled = tempSectionName.length <= 2,
                                         onClick = {
@@ -1763,7 +1776,7 @@ fun TimeConfigEditScreen(
                                             // 结束不晚于开始按跨午夜处理（次日结束），只有起止完全相同才是无效输入
                                             if (startMinutes == endMinutes) {
                                                 showToast(CourseEditStr.timeSameError())
-                                                return@TextButton
+                                                return@FlatTextButton
                                             }
                                             val newTimeStr = "${
                                                 formatHhMm(
@@ -1819,18 +1832,18 @@ fun TimeConfigEditScreen(
                             ) {
                                 Text(
                                     text = overlapMessage,
-                                    style = MiuixTheme.textStyles.body1,
-                                    color = MiuixTheme.colorScheme.onSurface,
+                                    style = NexioTheme.textStyles.body1,
+                                    color = NexioTheme.colorScheme.onSurface,
                                     // 父 Column 居中摆位：提示语换字时要按中心收放，否则先贴左边
                                     textAlign = TextAlign.Center,
                                 )
                                 Text(
                                     text = TimeEditStr.timeOverlapBlocking(),
-                                    style = MiuixTheme.textStyles.body1,
-                                    color = MiuixTheme.colorScheme.onSurface
+                                    style = NexioTheme.textStyles.body1,
+                                    color = NexioTheme.colorScheme.onSurface
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
-                                TextButton(
+                                FlatTextButton(
                                     text = CommonStr.done(),
                                     onClick = {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1855,23 +1868,23 @@ fun TimeConfigEditScreen(
                             ) {
                                 Text(
                                     text = overlapMessage,
-                                    style = MiuixTheme.textStyles.body1,
-                                    color = MiuixTheme.colorScheme.onSurface,
+                                    style = NexioTheme.textStyles.body1,
+                                    color = NexioTheme.colorScheme.onSurface,
                                     // 父 Column 居中摆位：提示语换字时要按中心收放，否则先贴左边
                                     textAlign = TextAlign.Center,
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = TimeEditStr.overlapWarningBody(),
-                                    style = MiuixTheme.textStyles.footnote2,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                    style = NexioTheme.textStyles.footnote2,
+                                    color = NexioTheme.colorScheme.onSurfaceVariantActions
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    TextButton(
+                                    FlatTextButton(
                                         text = TimeEditStr.backToEdit(),
                                         onClick = {
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1879,7 +1892,7 @@ fun TimeConfigEditScreen(
                                         },
                                         modifier = Modifier.weight(1f)
                                     )
-                                    TextButton(
+                                    FlatTextButton(
                                         text = TimeEditStr.saveAnyway(),
                                         onClick = {
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1920,7 +1933,7 @@ fun TimeConfigEditScreen(
                                         itemHeight = 60.dp,
                                         label = { TimeCfgStr.monthN(it) },
                                         wrapAround = true,
-                                        textStyle = MiuixTheme.textStyles.title2,
+                                        textStyle = NexioTheme.textStyles.title2,
                                         modifier = Modifier.weight(1f)
                                     )
                                     NumberPicker(
@@ -1932,7 +1945,7 @@ fun TimeConfigEditScreen(
                                         visibleItemCount = 3,
                                         itemHeight = 60.dp,
                                         label = { CommonStr.dateN(it) },
-                                        textStyle = MiuixTheme.textStyles.title2,
+                                        textStyle = NexioTheme.textStyles.title2,
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
@@ -1941,12 +1954,12 @@ fun TimeConfigEditScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    TextButton(
+                                    FlatTextButton(
                                         text = CommonStr.cancel(),
                                         onClick = { showRoutineDateDialog = false },
                                         modifier = Modifier.weight(1f)
                                     )
-                                    TextButton(
+                                    FlatTextButton(
                                         text = CommonStr.ok(),
                                         onClick = {
                                             // 同一天只能有一套作息，否则到点切换的结果取决于列表顺序
@@ -1956,7 +1969,7 @@ fun TimeConfigEditScreen(
                                                 )
                                             ) {
                                                 showToast(TimeCfgStr.routineDateTaken())
-                                                return@TextButton
+                                                return@FlatTextButton
                                             }
                                             routineEffectiveMonth = tempRoutineMonth
                                             routineEffectiveDay = tempRoutineDay
@@ -1985,7 +1998,7 @@ fun TimeConfigEditScreen(
                                     .padding(top = 16.dp),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                TextButton(
+                                FlatTextButton(
                                     text = CommonStr.cancel(),
                                     onClick = {
                                         hapticFeedback.performHapticFeedback(
@@ -1995,7 +2008,7 @@ fun TimeConfigEditScreen(
                                     },
                                     modifier = Modifier.weight(1f)
                                 )
-                                TextButton(
+                                FlatTextButton(
                                     text = CommonStr.delete(),
                                     onClick = {
                                         hapticFeedback.performHapticFeedback(

@@ -33,7 +33,7 @@ import com.haooz.chedule.data.util.CourseTimeSpan
 import com.haooz.chedule.data.util.formatSlashDate
 import com.haooz.chedule.data.util.todayLocalDate
 import kotlin.concurrent.Volatile
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.isoDayNumber
 
@@ -457,6 +457,10 @@ class CourseRepository private constructor() : PeriodTimeSource {
         internal const val DEFAULT_FOLDER_ID = "folder_default"
         internal const val KEY_PRE_CLASS_REMINDER = "pre_class_reminder"
         internal const val KEY_PRE_CLASS_REMINDER_MINUTES = "pre_class_reminder_minutes"
+        /** 上课提醒的节次范围：起始节（1 起） */
+        internal const val KEY_PRE_CLASS_REMINDER_START_SECTION = "pre_class_reminder_start_section"
+        /** 上课提醒的节次范围：结束节；0 = 不限（到最后） */
+        internal const val KEY_PRE_CLASS_REMINDER_END_SECTION = "pre_class_reminder_end_section"
         internal const val KEY_NEXT_DAY_REMINDER = "next_day_reminder"
         internal const val KEY_NEXT_DAY_REMINDER_HOUR = "next_day_reminder_hour"
         internal const val KEY_NEXT_DAY_REMINDER_MINUTE = "next_day_reminder_minute"
@@ -1696,6 +1700,35 @@ class CourseRepository private constructor() : PeriodTimeSource {
         prefs.edit {putInt(KEY_PRE_CLASS_REMINDER_MINUTES, minutes) }
     }
 
+    /** 上课提醒起始节（默认 1，即从第一节开始提醒） */
+    fun getPreClassReminderStartSection(): Int {
+        // 节数被调小后旧值可能落在总节数之外（此时按时间窗筛选会一场空），读出时就夹一次；
+        // 只夹返回值，不覆盖存储：节数调回去时用户原来的设置还在
+        return safeGetInt(KEY_PRE_CLASS_REMINDER_START_SECTION, 1)
+            .coerceIn(1, reminderSectionCount())
+    }
+
+    fun setPreClassReminderStartSection(section: Int) {
+        prefs.edit { putInt(KEY_PRE_CLASS_REMINDER_START_SECTION, section.coerceAtLeast(1)) }
+    }
+
+    /** 上课提醒结束节；0 = 不限（一直到最后节） */
+    fun getPreClassReminderEndSection(): Int {
+        val raw = safeGetInt(KEY_PRE_CLASS_REMINDER_END_SECTION, 0).coerceAtLeast(0)
+        if (raw <= 0) return 0
+        val total = reminderSectionCount()
+        val start = safeGetInt(KEY_PRE_CLASS_REMINDER_START_SECTION, 1).coerceIn(1, total)
+        return raw.coerceIn(start, total)
+    }
+
+    fun setPreClassReminderEndSection(section: Int) {
+        prefs.edit { putInt(KEY_PRE_CLASS_REMINDER_END_SECTION, section.coerceAtLeast(0)) }
+    }
+
+    /** 当前作息的总节数，至少为 1（总节数为 0 时任何「第 N 节」都没有意义） */
+    private fun reminderSectionCount(): Int =
+        (getMorningSections() + getAfternoonSections() + getEveningSections()).coerceAtLeast(1)
+
     fun getNextDayReminder(): Boolean {
         return prefs.getBoolean(KEY_NEXT_DAY_REMINDER, false)
     }
@@ -2596,10 +2629,12 @@ class CourseRepository private constructor() : PeriodTimeSource {
                     sectionTimes = sectionTimes
                 )
             val routineId = base.effectiveRoutineId()
-            saveTimeConfig(
+            val next =
                 if (routineId == null) updated
                 else base.withRoutineTimesApplied(routineId, updated)
-            )
+            // 切换课表时目标配置通常就是当前配置：内容没变就不整份写库、不发变更
+            if (next == base) return
+            saveTimeConfig(next)
         } finally {
             batchingSettings = false
         }

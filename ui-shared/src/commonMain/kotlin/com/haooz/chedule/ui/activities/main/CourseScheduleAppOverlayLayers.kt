@@ -63,22 +63,25 @@ import com.haooz.chedule.ui.basic.ShortcutMenuShadowPadding
 import com.haooz.chedule.ui.components.CrossWeekDropHint
 import com.haooz.chedule.ui.components.EdgeAutoPageIndicator
 import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
-import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
-import com.haooz.chedule.ui.effects.motion.CustomizePageEasing
-import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
-import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
+import com.haooz.nexioui.interaction.InteractiveHighlight
+import com.haooz.softglass.GlassEnvironment
+import com.haooz.nexioui.motion.CustomizePageEasing
+import com.haooz.nexioui.motion.OobeCubicOutEasing
+import com.haooz.nexioui.motion.OobeQuartOutEasing
 import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.glass.SoftGlassStyle
 import com.haooz.chedule.ui.screens.CombinationThumbnail
 import com.haooz.chedule.ui.screens.CourseDetailScreen
 import com.haooz.chedule.ui.screens.CustomizeScheduleScreen
-import com.haooz.chedule.ui.theme.rememberAppThemeController
+import com.haooz.chedule.ui.theme.AppNexioTheme
+import com.haooz.chedule.ui.theme.rememberAppThemeColors
 import com.haooz.chedule.ui.utils.FeatureLog
 import com.haooz.chedule.ui.utils.HostedOverlay
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.LocalHostOverlays
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
-import com.haooz.chedule.ui.utils.addScreenCornerRect
+import com.haooz.chedule.ui.utils.MirroredSnapshotBackdrop
+import com.haooz.nexioui.window.addScreenCornerRect
 import com.haooz.chedule.ui.utils.bottomFloatingPadding
 import com.haooz.chedule.ui.utils.buildShareScheduleMap
 import com.haooz.chedule.ui.utils.courseCardSolidBacking
@@ -88,13 +91,14 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.Copy
-import top.yukonga.miuix.kmp.icon.extended.Delete
-import top.yukonga.miuix.kmp.icon.extended.Edit
-import top.yukonga.miuix.kmp.icon.extended.Paste
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Add
+import com.haooz.nexioui.icon.extended.Copy
+import com.haooz.nexioui.icon.extended.Delete
+import com.haooz.nexioui.icon.extended.Edit
+import com.haooz.nexioui.icon.extended.Paste
+
+import com.haooz.nexioui.theme.NexioTheme
 
 /**
  * 课表主界面「浮层组」：浮动卡片 / 交换飞行、快捷菜单、课表外观页、详情页、切换课表、排班 loading。
@@ -122,7 +126,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
             val overlayEffectiveForcedDark =
                 if (captureThemeActive) captureThemeIsDark else forcedDark
             val overlayEffectiveDark = overlayEffectiveForcedDark ?: appSettingDark
-            val overlayPageController = rememberAppThemeController(isDark = overlayEffectiveDark)
+            val overlayPageColors = rememberAppThemeColors(isDark = overlayEffectiveDark)
             // 无壁纸时浮层垫课程表页底色（与网格课程卡同一份，取值见 courseCardSolidBacking）
             val floatSolidBacking = courseCardSolidBacking(
                 isDark = overlayEffectiveDark,
@@ -157,8 +161,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                     radiusBaseDp = 250.dp,
                     // 按压进度由 glowAlpha 驱动（150ms 淡变），不走组件自带手势
                     pressProgressOverride = { glowAlpha },
-                    // 只要圆形光晕，不要整幅提亮
-                    drawFlatOverlay = false,
+                    isDark = { GlassEnvironment.isDark },
                 )
             }
             // 浮层靠 graphicsLayer 平移，子树不会重绘；draw 期订阅这些位置量，
@@ -174,7 +177,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                     swapFlightScale.value
                 }
             }
-            MiuixTheme(controller = overlayPageController) {
+            AppNexioTheme(colors = overlayPageColors) {
                 CompositionLocalProvider(
                     LocalForcedDarkTheme provides overlayEffectiveForcedDark,
                     LocalGlassRedrawSignal provides floatingGlassRedraw,
@@ -380,7 +383,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                     buildList {
                         add(
                             ShortcutMenuItem(
-                                icon = MiuixIcons.Edit,
+                                icon = NexioIcons.Edit,
                                 label = CommonStr.edit(),
                                 onClick = {
                                     FeatureLog.course("edit_shortcut")
@@ -394,7 +397,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         if (shortcutMenuAllowCopy && !activeShortcutCourse.hasValidCustomTime()) {
                             add(
                                 ShortcutMenuItem(
-                                    icon = MiuixIcons.Copy,
+                                    icon = NexioIcons.Copy,
                                     label = CommonStr.copy(),
                                     onClick = {
                                         FeatureLog.course("copy_shortcut")
@@ -407,7 +410,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         }
                         add(
                             ShortcutMenuItem(
-                                icon = MiuixIcons.Delete,
+                                icon = NexioIcons.Delete,
                                 label = CommonStr.delete(),
                                 onClick = {
                                     FeatureLog.course("delete_shortcut")
@@ -427,7 +430,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         if (copiedCourseForPaste != null && activeEmptyTarget != null) {
                             add(
                                 ShortcutMenuItem(
-                                    icon = MiuixIcons.Paste,
+                                    icon = NexioIcons.Paste,
                                     label = ChromeStr.paste(),
                                     onClick = {
                                         pasteRangeTarget = PasteTarget(
@@ -445,7 +448,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         if (activeEmptyTarget != null) {
                             add(
                                 ShortcutMenuItem(
-                                    icon = MiuixIcons.Add,
+                                    icon = NexioIcons.Add,
                                     label = CommonStr.add(),
                                     iconSize = 24.dp,
                                     onClick = {
@@ -464,7 +467,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         }
                     }
                 }
-                MiuixTheme(controller = overlayPageController) {
+                AppNexioTheme(colors = overlayPageColors) {
                     CompositionLocalProvider(
                         LocalForcedDarkTheme provides overlayEffectiveForcedDark,
                     ) {
@@ -667,6 +670,8 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         // 视图模式：外观弹窗里切，切完即落盘（与主题档位一致）
                         scheduleViewMode = scheduleViewMode,
                         onScheduleViewModeChange = { applyScheduleViewMode(it) },
+                        todayViewMode = todayViewMode,
+                        onTodayViewModeChange = { applyTodayViewMode(it) },
                         combinations = customizeThumbnails,
                         currentCombinationIndex = currentCombinationIndex,
                         isExiting = isCustomizeExiting,
@@ -862,9 +867,19 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
         // 课程详情页必须盖在弹窗层之上（见 HostOverlayEntry.abovePopups）：它是在课程表弹出的
         // 「课程详情」底部弹窗里点卡片长出来的，弹窗得留在它下面（对齐 Android 的层级）。
         HostedOverlay(
-            active = showDetail || detailSnapshot != null,
+            active = showDetail || detailSnapshot != null || detailBackgroundSnapshot != null,
             abovePopups = true,
         ) {
+            // 详情 morph 背景：整屏快照独立缩放，和详情页同层，底部 sheet 一并被背景盖住
+            detailBackgroundSnapshot?.let { background ->
+                MirroredSnapshotBackdrop(
+                    snapshot = background,
+                    shrink = { detailBackgroundScale.value },
+                    modifier = Modifier.fillMaxSize(),
+                    backgroundColor = NexioTheme.colorScheme.surface,
+                    blurRadiusPx = { managePageBlurRadius.value * densityProvider.density },
+                )
+            }
             if (showDetail) {
                 val windowInfo = LocalWindowInfo.current
                 val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
@@ -884,24 +899,32 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                     classStartTime = classStartTime,
                     teachingWeekReorganizations = teachingWeekRules,
                     targetWeek = detailTargetWeek,
+                    // 先停在起点卡态：等宿主持源卡藏掉、整页快照上屏后再放行展开
+                    morphStarted = detailMorphStarted,
                     onBackStart = {
                         detailExiting = true
                         coroutineScope.launch {
                             managePageBlurRadius.animateTo(
                                 0f,
-                                animationSpec = tween(320, easing = OobeCubicOutEasing)
+                                animationSpec = tween(340, easing = OobeCubicOutEasing)
+                            )
+                        }
+                        coroutineScope.launch {
+                            detailBackgroundScale.animateTo(
+                                1f,
+                                animationSpec = tween(340, easing = OobeCubicOutEasing)
                             )
                         }
                     },
                     onBack = {
+                        // 详情页缩回原位时源卡片要重新出现，morph 才落得回去
                         hiddenCourseIds = emptySet()
-                        // ⚠ 详情页延后一帧再消失：morph 结束时卡片已缩回原位，此刻 sheet 里
-                        // 的原卡片还没画出来，同帧摘掉详情页就闪一帧空白。
                         coroutineScope.launch {
                             withFrameNanos { }
                             showDetail = false
                             detailExiting = false
                             detailSnapshot = null
+                            detailBackgroundSnapshot = null
                         }
                     }
                 )
@@ -961,7 +984,8 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                             recycleSnapshot(staleShot)
                                             switchReloadJob?.join()
                                             switchReloadJob = null
-                                            withFrameNanos { }
+                                            // 直接请求录制：同一帧内会先完成数据驱动的重组再录制新内容，
+                                            // 省掉额外一帧等待（旧实现 withFrameNanos 只是保险）
                                             prepareMainContentLayer()
                                         }
                                         switchOverlayActive = true
@@ -1033,7 +1057,6 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                 onScheduleChanged = {
                                     FeatureLog.t("切换课表", "schedule_changed")
                                     switchReloadJob = viewModel.reloadCourses()
-                                    settingsViewModel.refreshSettings()
                                     scheduleChanged = true
                                     // 切换页直接改 repository，须把 ScheduleViewModel 拉回一致；摘要放 IO
                                     coroutineScope.launch(ioDispatcher) {
@@ -1123,6 +1146,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                 isScheduleShareable = { name ->
                                     buildShareScheduleMap(switchShareRepository, name) != null
                                 },
+                                onSaveScheduleImage = onSaveScheduleImage,
                                 initialScheduleNames = scheduleViewModel.scheduleNames.collectAsState().value,
                                 initialCurrentScheduleId = scheduleViewModel.currentScheduleName.collectAsState().value,
                                 initialScheduleSummaries = scheduleViewModel.scheduleSummaries.collectAsState().value

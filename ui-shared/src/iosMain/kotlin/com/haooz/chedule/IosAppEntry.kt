@@ -32,12 +32,12 @@ import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.storage.CourseStorage
 import com.haooz.chedule.data.platform.toByteArray
 import com.haooz.chedule.i18n.L
-import com.haooz.chedule.ui.activities.BackupAutomation
 import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.activities.main.CourseScheduleApp
 import com.haooz.chedule.ui.activities.today.TodayAssistantCard
 import com.haooz.chedule.ui.screens.LocalTabletSettingsPaneRouteContent
 import com.haooz.chedule.ui.navigation.AboutRoute
+import com.haooz.chedule.ui.navigation.AiFeaturesRoute
 import com.haooz.chedule.ui.navigation.AiImportRoute
 import com.haooz.chedule.ui.navigation.AppNavHost
 import com.haooz.chedule.ui.navigation.AppRoute
@@ -46,6 +46,7 @@ import com.haooz.chedule.ui.navigation.AppreciateAuthorRoute
 import com.haooz.chedule.ui.navigation.BackupAndMigrationRoute
 import com.haooz.chedule.ui.navigation.BackupCenterRoute
 import com.haooz.chedule.ui.navigation.ChangelogRoute
+import com.haooz.chedule.ui.navigation.McpServiceRoute
 import com.haooz.chedule.ui.navigation.WeatherRoute
 import com.haooz.chedule.ui.navigation.CommunicationRoute
 import com.haooz.chedule.ui.navigation.CourseManageRoute
@@ -65,9 +66,11 @@ import com.haooz.chedule.ui.navigation.SettingsRoute
 import com.haooz.chedule.ui.navigation.UpdatePreferencesRoute
 import com.haooz.chedule.ui.navigation.UpdateSettingsRoute
 import com.haooz.chedule.ui.navigation.WebDavSettingsRoute
+import com.haooz.chedule.ui.navigation.AiEduImportRoute
+import com.haooz.chedule.ui.navigation.AiEduImportHistoryRoute
+import com.haooz.chedule.ui.navigation.AiEduPreviewRoute
 import com.haooz.chedule.ui.navigation.WebImportRoute
 import com.haooz.chedule.ui.navigation.WidgetIntroRoute
-import com.haooz.chedule.ui.screens.PrivacyConsentScreen
 import com.haooz.chedule.ui.screens.WeatherBootstrapIos
 import com.haooz.chedule.ui.screens.rememberWeatherIos
 import com.haooz.chedule.ui.utils.IosReminderController
@@ -193,10 +196,9 @@ internal fun NexioIosMain(host: IosAppHost) {
     // 合规：对齐 Android MainActivity —— 启动时同步同意状态，未同意前不触网（云同步/公告/统计）
     PrivacyConsent.refresh()
     val consented by PrivacyConsent.consented.collectAsState()
-    // 统计上报：已同意的回访用户，冷启动即上报（active + 一次性 install），对齐 Android onCreate
-    LaunchedEffect(Unit) {
-        BackupAutomation.install(backupFileController)
-        if (PrivacyConsent.hasConsented()) {
+    // 统计上报：同意之后才发（冷启动时 refresh 已同步状态；首次同意发生在引导里，这里同样会触发）
+    LaunchedEffect(consented) {
+        if (consented) {
             StatsReporter.reportActive()
             StatsReporter.reportInstallOnce()
         }
@@ -288,10 +290,6 @@ internal fun NexioIosMain(host: IosAppHost) {
 internal fun NexioIosNavigation(host: IosAppHost) {
     val router = host.router
     val mainTransition = host.mainTransition
-    val consented by PrivacyConsent.consented.collectAsState()
-    // 与 Android MainActivity 对齐：隐私弹窗挂在 AppNavHost 之上，全文页在栈上时撤遮罩（否则读不了也滑不动）。
-    // ⚠ iOS「隐私政策」是原生文档页（isNativeDocument），被 nativeRouteHandler 吞掉不进 router.routes，只能查 nativePageIds。
-    val policyPageVisible = host.nativeRouteIds.any { it == AppRoute.PrivacyPolicy.id }
     CompositionLocalProvider(LocalAppRouter provides router) {
         Box(Modifier.fillMaxSize()) {
             AppNavHost(
@@ -301,24 +299,7 @@ internal fun NexioIosNavigation(host: IosAppHost) {
             ) { _, route ->
                 NexioIosRouteContent(router, route)
             }
-            // 隐私同意弹窗：与 Android 同挂载方式（AppNavHost 之后、同层 Box），且须在此层——位于原生
-            // TabBar 之上遮罩才盖得住底栏。同意后 consented 翻转才触发 CourseScheduleApp 的云同步/公告与统计上报。
-            if (!consented) {
-                PrivacyConsentScreen(
-                    onAgree = {
-                        PrivacyConsent.setConsented()
-                        // 合规：同意后方可进行设备信息上报（对齐 Android 的同意回调）
-                        StatsReporter.reportActive()
-                        StatsReporter.reportInstallOnce()
-                    },
-                    onDecline = {
-                        // 对齐 Android 的 finish()：拒绝即退出。iOS 无公开退应用 API，exit(0) 是仅有的等价手段。
-                        platform.posix.exit(0)
-                    },
-                    onOpenPolicy = { router.navigate(AppRoute.PrivacyPolicy) },
-                    policyPageVisible = policyPageVisible,
-                )
-            }
+            // 隐私同意已由首启引导接管（引导覆盖在主界面之上），这里不再叠同意弹窗
         }
     }
 }
@@ -362,6 +343,13 @@ internal fun NexioIosRouteContent(router: AppRouter, route: AppRoute) {
         AppRoute.Feedback -> FeedbackRoute(router)
         AppRoute.FeedbackHistory -> FeedbackHistoryRoute(router)
         AppRoute.FeedbackRoadmap -> FeedbackRoadmapRoute(router)
+        AppRoute.AiFeatures -> AiFeaturesRoute(router)
+        AppRoute.McpService -> McpServiceRoute(
+            router = router,
+            onCopyToClipboard = { text ->
+                UIPasteboard.generalPasteboard.string = text
+            },
+        )
         AppRoute.AppreciateAuthor -> AppreciateAuthorRoute(router)
         // 带注入的文档壳：iOS 用默认 Noop 能力，剪贴板注入 UIPasteboard
         AppRoute.PreferenceSettings -> PreferenceSettingsRoute(router)
@@ -411,6 +399,7 @@ internal fun NexioIosRouteContent(router: AppRouter, route: AppRoute) {
         // WebDAV：备份/恢复本体已在 :core；恢复成功后要重排提醒
         AppRoute.WebDavSettings -> WebDavSettingsRoute(
             router = router,
+            backupFileController = backupFileController,
             onHolidayDataChanged = onHolidayDataChanged,
         )
         // iOS 文件选择器（UIDocumentPicker）+ 三条口令导入
@@ -435,5 +424,12 @@ internal fun NexioIosRouteContent(router: AppRouter, route: AppRoute) {
             router = router,
             webHostFactory = { config, events -> rememberIosWebHost(config, events) },
         )
+        // AI 教务导入：同一套 WKWebView 宿主，脚本由模型现场写
+        AppRoute.AiEduImport -> AiEduImportRoute(
+            router = router,
+            webHostFactory = { config, events -> rememberIosWebHost(config, events) },
+        )
+        AppRoute.AiEduImportHistory -> AiEduImportHistoryRoute(router)
+        AppRoute.AiEduPreview -> AiEduPreviewRoute(router)
     }
 }

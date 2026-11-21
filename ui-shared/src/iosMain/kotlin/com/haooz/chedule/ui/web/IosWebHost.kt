@@ -87,7 +87,8 @@ private val IOS_BRIDGE_JS = """
             showAlert: function(title, content, confirmText, promiseId) { post('showAlert', [title, content, confirmText, promiseId]); },
             showPrompt: function(title, tip, defaultText, validatorJs, promiseId) { post('showPrompt', [title, tip, defaultText, validatorJs, promiseId]); },
             showSingleSelection: function(title, itemsJson, defaultIndex, promiseId) { post('showSingleSelection', [title, itemsJson, defaultIndex, promiseId]); },
-            isPostForwardEnabled: false
+            isPostForwardEnabled: false,
+            netLog: function(json) { post('netLog', [json]); }
         };
         window.WebPostService = { register: function(id, body, contentType) {} };
     })();
@@ -138,6 +139,11 @@ fun rememberIosWebHost(config: WebHostConfig, events: WebHostEvents): WebHost {
         controller.setDesktopMode(currentConfig.isDesktopMode)
     }
 
+    // 必须早于首轮 load：document-start 脚本只对之后的文档生效
+    LaunchedEffect(currentConfig.netRecorderEnabled) {
+        controller.setNetRecorderEnabled(currentConfig.netRecorderEnabled)
+    }
+
     LaunchedEffect(currentConfig.importUrl) {
         controller.load(currentConfig.importUrl)
     }
@@ -172,6 +178,9 @@ fun rememberIosWebHost(config: WebHostConfig, events: WebHostEvents): WebHost {
                 controller.currentHost()?.lowercase()?.removePrefix("www.")
 
             override fun evaluateJavascript(js: String) = controller.eval(js)
+
+            override fun evaluateJavascriptWithResult(js: String, onResult: (String?) -> Unit) =
+                controller.evalWithResult(js, onResult)
 
             override fun setImportTableId(tableId: String) = controller.core.setImportTableId(tableId)
         }
@@ -212,6 +221,7 @@ private class IosWebHostController {
 
     private var timer: NSTimer? = null
     private var desktopMode = false
+    private var netRecorderEnabled = false
 
     /** 首次必须应用一次 UA（手机版也要）—— 否则拿到的是 WKWebView 那个「版本过低」的默认 UA */
     private var userAgentApplied = false
@@ -289,14 +299,31 @@ private class IosWebHostController {
         // 切模式时打一次，排查「教务系统判浏览器版本过低」时全靠它
         NexioLog.w(TAG, "UA: ${webView.customUserAgent}")
         // ⚠ 换 UA 只对新文档生效，必须重新取页（与 Android 的「换 UA 后重载」同一坑）
-        val viewportScript = userScript(DESKTOP_VIEWPORT_JS)
+        installScripts(enabled)
+        if (webView.URL != null) webView.reload()
+    }
+
+    /**
+     * AI 教务导入的网络记录器开关。
+     *
+     * 只影响之后的文档：调用方必须在首轮 `load` 之前打开，否则首屏请求抓不到。
+     */
+    fun setNetRecorderEnabled(enabled: Boolean) {
+        if (netRecorderEnabled == enabled) return
+        netRecorderEnabled = enabled
+        installScripts(desktopMode)
+    }
+
+    /** 全量重装 document-start 脚本；顺序固定：桥 → Promise → 视口 → 网络记录器。 */
+    private fun installScripts(desktop: Boolean) {
         webView.configuration.userContentController.removeAllUserScripts()
         webView.configuration.userContentController.apply {
             addUserScript(userScript(IOS_BRIDGE_JS))
             addUserScript(userScript(JS_PROMISE_BRIDGE))
-            if (enabled) addUserScript(viewportScript)
+            if (desktop) addUserScript(userScript(DESKTOP_VIEWPORT_JS))
+            // 记录器要盖住子 frame：不少教务系统把课表塞在 iframe 里
+            if (netRecorderEnabled) addUserScript(userScript(EDU_NET_RECORDER_JS, allFrames = true))
         }
-        if (webView.URL != null) webView.reload()
     }
 
     fun load(url: String?) {
@@ -323,6 +350,19 @@ private class IosWebHostController {
         webView.evaluateJavaScript(js, null)
     }
 
+    /**
+     * 执行 JS 并回传结果（AI 教务导入读页面 / 打接口用）。
+     *
+     * WKWebView 的 completion 回到主线程，但结果可能是 NSString / NSNumber / NSArray，
+     * 这里统一 `toString()` —— 调用方拿到的应该是脚本自己 `return` 的字符串，
+     * 真给了对象时至少还能看到内容，不至于静默变 null。
+     */
+    fun evalWithResult(js: String, onResult: (String?) -> Unit) {
+        webView.evaluateJavaScript(js) { result: Any?, _: NSError? ->
+            onResult(result?.toString())
+        }
+    }
+
     fun dispose() {
         timer?.invalidate()
         timer = null
@@ -347,6 +387,7 @@ private class IosWebHostController {
     private fun handle(name: String, args: List<Any?>) {
         NexioLog.d(TAG, "bridge: $name")
         when (name) {
+            "netLog" -> runCatching { recordEduNetLog(args.getOrNull(0)?.toString().orEmpty()) }
             "showToast" -> showToast(args.getOrNull(0)?.toString().orEmpty())
             "showAlert" -> {
                 val promiseId = args.getOrNull(3)?.toString()
@@ -460,10 +501,10 @@ private class IosWebHostController {
         )
     }
 
-    private fun userScript(source: String): WKUserScript = WKUserScript(
+    private fun userScript(source: String, allFrames: Boolean = false): WKUserScript = WKUserScript(
         source = source,
         injectionTime = WKUserScriptInjectionTime.WKUserScriptInjectionTimeAtDocumentStart,
-        forMainFrameOnly = true,
+        forMainFrameOnly = !allFrames,
     )
 }
 

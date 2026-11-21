@@ -66,7 +66,7 @@ import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ReminderStr
 import com.haooz.chedule.ui.basic.AiSparkleIcon
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
-import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.nexioui.cardexpand.CardExpand
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -74,31 +74,31 @@ import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.settingsViewModel
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
-import top.yukonga.miuix.kmp.basic.DropdownDefaults
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.NumberPicker
-import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.Surface
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.progressindicator.CircularProgressIndicator
+import com.haooz.nexioui.dropdown.DropdownDefaults
+import com.haooz.nexioui.dropdown.DropdownEntry
+import com.haooz.nexioui.dropdown.DropdownItem
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.button.FlatIconButton
+import com.haooz.nexioui.numberpicker.NumberPicker
+import com.haooz.nexioui.progressindicator.ProgressIndicatorDefaults
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.surface.Surface
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.basic.ArrowRight
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.arrowpreference.ArrowPreference
+import com.haooz.nexioui.switchpreference.SwitchPreference
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 /** 课程提醒页详细流程日志：仅「开始录制」后写入 */
 private fun rlog(event: String, detail: String = "") {
@@ -161,17 +161,17 @@ private fun ClassroomPreviewRow(
     ) {
         Text(
             text = raw,
-            style = MiuixTheme.textStyles.body2,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            style = NexioTheme.textStyles.body2,
+            color = NexioTheme.colorScheme.onSurfaceVariantSummary,
             modifier = Modifier.weight(1f),
         )
         Icon(
-            imageVector = MiuixIcons.Basic.ArrowRight,
+            imageVector = NexioIcons.Basic.ArrowRight,
             contentDescription = null,
             tint = if (changed) {
-                MiuixTheme.colorScheme.primary
+                NexioTheme.colorScheme.primary
             } else {
-                MiuixTheme.colorScheme.onSurfaceVariantSummary
+                NexioTheme.colorScheme.onSurfaceVariantSummary
             },
             modifier = Modifier.size(14.dp),
         )
@@ -194,23 +194,23 @@ private fun ClassroomPreviewRow(
                     .onFocusChanged { state ->
                         if (state.isFocused) hadFocus = true else if (hadFocus) onCommit()
                     },
-                textStyle = MiuixTheme.textStyles.body2.copy(
-                    color = MiuixTheme.colorScheme.primary,
+                textStyle = NexioTheme.textStyles.body2.copy(
+                    color = NexioTheme.colorScheme.primary,
                     textAlign = TextAlign.End,
                 ),
                 singleLine = true,
-                cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
+                cursorBrush = SolidColor(NexioTheme.colorScheme.primary),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { onCommit() }),
             )
         } else {
             Text(
                 text = shown,
-                style = MiuixTheme.textStyles.body2,
+                style = NexioTheme.textStyles.body2,
                 color = if (changed) {
-                    MiuixTheme.colorScheme.primary
+                    NexioTheme.colorScheme.primary
                 } else {
-                    MiuixTheme.colorScheme.onSurface
+                    NexioTheme.colorScheme.onSurface
                 },
                 modifier = Modifier
                     .weight(1f)
@@ -229,6 +229,19 @@ private fun pad2(n: Int): String = n.toString().padStart(2, '0')
 /** `HH:mm` 两位补零（原 `%02d:%02d`） */
 private fun pad2(hour: Int, minute: Int): String = "${pad2(hour)}:${pad2(minute)}"
 
+/**
+ * 「平台权限」区里可以按平台隐藏的条目。
+ *
+ * 没有对应系统概念的平台（鸿蒙没有精确闹钟授权、电池优化白名单、免打扰改写、自启动）
+ * 不该显示一个永远「已授权」或点了没反应的入口。
+ */
+enum class ReminderPermissionRow {
+    EXACT_ALARM,
+    BATTERY_OPTIMIZATION,
+    DND,
+    AUTOSTART,
+}
+
 @Composable
 fun CourseReminderScreen(
     settingsViewModel: SettingsViewModel = settingsViewModel(),
@@ -236,9 +249,17 @@ fun CourseReminderScreen(
     liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     /** 提醒控制器（Android = AndroidReminderController 包装）；桌面/iOS 用 NoopReminderController */
     reminderController: ReminderController = NoopReminderController,
+    /** 本平台没有对应系统概念的权限行，默认全部展示（Android/iOS 行为不变） */
+    hiddenPermissionRows: Set<ReminderPermissionRow> = emptySet(),
 ) {
     val preClassReminder by settingsViewModel.preClassReminder.collectAsState()
     val preClassReminderMinutes by settingsViewModel.preClassReminderMinutes.collectAsState()
+    val preClassReminderStartSection by settingsViewModel.preClassReminderStartSection.collectAsState()
+    val preClassReminderEndSection by settingsViewModel.preClassReminderEndSection.collectAsState()
+    val morningSections by settingsViewModel.morningSections.collectAsState()
+    val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
+    val eveningSections by settingsViewModel.eveningSections.collectAsState()
+    val totalSections = (morningSections + afternoonSections + eveningSections).coerceAtLeast(1)
     val nextDayReminder by settingsViewModel.nextDayReminder.collectAsState()
     val nextDayReminderHour by settingsViewModel.nextDayReminderHour.collectAsState()
     val nextDayReminderMinute by settingsViewModel.nextDayReminderMinute.collectAsState()
@@ -252,6 +273,14 @@ fun CourseReminderScreen(
     var showMinutesDialog by remember { mutableStateOf(false) }
     var showTimeDialog by remember { mutableStateOf(false) }
     var tempMinutes by remember { mutableIntStateOf(preClassReminderMinutes) }
+    var showSectionRangeDialog by remember { mutableStateOf(false) }
+    // 结束节为 0 表示「到最后」，UI 上落到最后一节
+    var tempStartSection by remember { mutableIntStateOf(preClassReminderStartSection) }
+    var tempEndSection by remember(totalSections) {
+        mutableIntStateOf(
+            if (preClassReminderEndSection <= 0) totalSections else preClassReminderEndSection
+        )
+    }
     var tempHour by remember { mutableIntStateOf(nextDayReminderHour) }
     var tempMinute by remember { mutableIntStateOf(nextDayReminderMinute) }
 
@@ -473,7 +502,7 @@ fun CourseReminderScreen(
         }
     }
 
-    val backgroundColor = MiuixTheme.colorScheme.surface
+    val backgroundColor = NexioTheme.colorScheme.surface
     val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
         containerColor = Color.Transparent,
         selectedContainerColor = Color.Transparent,
@@ -581,7 +610,7 @@ fun CourseReminderScreen(
                                         Text(
                                             text = ReminderStr.minutesN(preClassReminderMinutes),
                                             fontSize = 14.5.sp,
-                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                             textAlign = TextAlign.End,
                                         )
                                     },
@@ -590,6 +619,47 @@ fun CourseReminderScreen(
                                         rlog("preclass_minutes_dialog_open", "cur=${preClassReminderMinutes}min")
                                         tempMinutes = preClassReminderMinutes
                                         showMinutesDialog = true
+                                    }
+                                )
+                                // 提醒节次范围：只提醒指定节次，晚休之后的课可以不再打扰
+                                val reminderAllSections = preClassReminderStartSection <= 1 &&
+                                    (preClassReminderEndSection <= 0 || preClassReminderEndSection >= totalSections)
+                                val reminderSectionLabel = when {
+                                    reminderAllSections -> ReminderStr.allSections()
+                                    preClassReminderEndSection <= 0 || preClassReminderEndSection >= totalSections ->
+                                        ReminderStr.sectionRangeFromN(preClassReminderStartSection)
+                                    preClassReminderStartSection <= 1 ->
+                                        ReminderStr.sectionRangeUntilN(preClassReminderEndSection)
+                                    else -> ReminderStr.sectionRangeN(
+                                        preClassReminderStartSection,
+                                        preClassReminderEndSection
+                                    )
+                                }
+                                ArrowPreference(
+                                    title = ReminderStr.reminderSections(),
+                                    endActions = {
+                                        Text(
+                                            text = reminderSectionLabel,
+                                            fontSize = 14.5.sp,
+                                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
+                                            textAlign = TextAlign.End,
+                                        )
+                                    },
+                                    holdDownState = showSectionRangeDialog,
+                                    onClick = {
+                                        rlog(
+                                            "preclass_sections_dialog_open",
+                                            "start=$preClassReminderStartSection end=$preClassReminderEndSection total=$totalSections"
+                                        )
+                                        tempStartSection = preClassReminderStartSection
+                                            .coerceIn(1, totalSections)
+                                        tempEndSection = if (preClassReminderEndSection <= 0) {
+                                            totalSections
+                                        } else {
+                                            preClassReminderEndSection
+                                                .coerceIn(tempStartSection, totalSections)
+                                        }
+                                        showSectionRangeDialog = true
                                     }
                                 )
                             }
@@ -619,7 +689,7 @@ fun CourseReminderScreen(
                                         Text(
                                             text = pad2(nextDayReminderHour, nextDayReminderMinute),
                                             fontSize = 14.5.sp,
-                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                             textAlign = TextAlign.End,
                                         )
                                     },
@@ -656,7 +726,7 @@ fun CourseReminderScreen(
                                                 ReminderStr.beforeEndN(inClassLeadMinutes)
                                             },
                                             fontSize = 14.5.sp,
-                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                             textAlign = TextAlign.End,
                                         )
                                     },
@@ -785,7 +855,7 @@ fun CourseReminderScreen(
                                             Text(
                                                 text = ReminderStr.shizukuStatus(),
                                                 fontSize = 14.sp,
-                                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                                color = NexioTheme.colorScheme.onSurfaceVariantSummary
                                             )
                                             Spacer(modifier = Modifier.weight(1f))
                                             Text(
@@ -810,13 +880,13 @@ fun CourseReminderScreen(
                                             Spacer(modifier = Modifier.height(8.dp))
                                             Text(
                                                 text = ReminderStr.installShizuku(),
-                                                style = MiuixTheme.textStyles.body2,
-                                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                                style = NexioTheme.textStyles.body2,
+                                                color = NexioTheme.colorScheme.onSurfaceVariantSummary
                                             )
                                         }
                                         CardExpand(visible = shizukuRunning && !shizukuAuthorized) {
                                             Spacer(modifier = Modifier.height(12.dp))
-                                            TextButton(
+                                            FlatTextButton(
                                                 text = ReminderStr.authorizeShizuku(),
                                                 onClick = {
                                                     rlog("shizuku_authorize_request")
@@ -955,7 +1025,7 @@ fun CourseReminderScreen(
                             ),
                         )
 
-                        // 课中岛缩略态右侧：与课前岛的左右两侧互不干扰
+                        // 课中岛缩略态右侧：小米超级岛已固定「正在上课 + 倒计时」，仅 iOS 灵动岛还用这个选项
                         val islandInClassRightOptions = listOf(
                             DropdownItem(
                                 text = ReminderStr.inClassNow(),
@@ -1008,9 +1078,9 @@ fun CourseReminderScreen(
                                     liquidGlassBackdrop = liquidGlassBackdrop,
                                     dropdownColors = liquidGlassDropdownColors,
                                 )
-                                CardExpand(visible = inClassEnabled || !isHyperIsland) {
+                                CardExpand(visible = !isHyperIsland) {
                                     OverlayDropdownMenu(
-                                        title = if (isHyperIsland) ReminderStr.inClassIslandRight() else ReminderStr.inClassDynamicIslandRight(),
+                                        title = ReminderStr.inClassDynamicIslandRight(),
                                         entry = DropdownEntry(items = islandInClassRightOptions),
                                         collapseOnSelection = true,
                                         liquidGlassBackdrop = liquidGlassBackdrop,
@@ -1109,9 +1179,9 @@ fun CourseReminderScreen(
                                         summary = ReminderStr.viewAbbreviationPreviewSummary(),
                                         endActions = {
                                             if (classroomLabelMethod == ClassroomLabel.METHOD_AI) {
-                                                IconButton(
+                                                FlatIconButton(
                                                     onClick = {
-                                                        if (aiShrinking) return@IconButton
+                                                        if (aiShrinking) return@FlatIconButton
                                                         hapticFeedback.performHapticFeedback(
                                                             HapticFeedbackType.Confirm
                                                         )
@@ -1164,7 +1234,7 @@ fun CourseReminderScreen(
                                                         }
                                                     },
                                                     enabled = !aiShrinking,
-                                                    backgroundColor = MiuixTheme.colorScheme.primary.copy(0.8f),
+                                                    backgroundColor = NexioTheme.colorScheme.primary.copy(0.8f),
                                                     modifier = Modifier.size(36.dp),
                                                 ) {
                                                     if (aiShrinking) {
@@ -1219,7 +1289,7 @@ fun CourseReminderScreen(
                                             color = if (notificationGranted) {
                                                 ComposeColor(0xFF4CAF50)
                                             } else {
-                                                MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                NexioTheme.colorScheme.onSurfaceVariantActions
                                             },
                                             textAlign = TextAlign.End,
                                         )
@@ -1243,7 +1313,7 @@ fun CourseReminderScreen(
                                                 color = if (canPostPromoted) {
                                                     ComposeColor(0xFF4CAF50)
                                                 } else {
-                                                    MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                    NexioTheme.colorScheme.onSurfaceVariantActions
                                                 },
                                                 textAlign = TextAlign.End,
                                             )
@@ -1258,6 +1328,7 @@ fun CourseReminderScreen(
                                         }
                                     )
                                 }
+                                if (ReminderPermissionRow.EXACT_ALARM !in hiddenPermissionRows) {
                                 ArrowPreference(
                                     title = ReminderStr.exactAlarmPermission(),
                                     summary = ReminderStr.exactAlarmPermissionSummary(),
@@ -1268,7 +1339,7 @@ fun CourseReminderScreen(
                                             color = if (canScheduleExactAlarms) {
                                                 ComposeColor(0xFF4CAF50)
                                             } else {
-                                                MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                NexioTheme.colorScheme.onSurfaceVariantActions
                                             },
                                             textAlign = TextAlign.End,
                                         )
@@ -1281,6 +1352,8 @@ fun CourseReminderScreen(
                                         }
                                     }
                                 )
+                                }
+                                if (ReminderPermissionRow.BATTERY_OPTIMIZATION !in hiddenPermissionRows) {
                                 ArrowPreference(
                                     title = ReminderStr.batteryOptimization(),
                                     summary = ReminderStr.batteryOptimizationSummary(),
@@ -1291,7 +1364,7 @@ fun CourseReminderScreen(
                                             color = if (isIgnoringBattery) {
                                                 ComposeColor(0xFF4CAF50)
                                             } else {
-                                                MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                NexioTheme.colorScheme.onSurfaceVariantActions
                                             },
                                             textAlign = TextAlign.End,
                                         )
@@ -1305,6 +1378,8 @@ fun CourseReminderScreen(
                                         }
                                     }
                                 )
+                                }
+                                if (ReminderPermissionRow.DND !in hiddenPermissionRows) {
                                 ArrowPreference(
                                     title = ReminderStr.dndPermission(),
                                     summary = ReminderStr.dndPermissionSummary(),
@@ -1315,7 +1390,7 @@ fun CourseReminderScreen(
                                             color = if (dndPermissionGranted) {
                                                 ComposeColor(0xFF4CAF50)
                                             } else {
-                                                MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                NexioTheme.colorScheme.onSurfaceVariantActions
                                             },
                                             textAlign = TextAlign.End,
                                         )
@@ -1332,6 +1407,8 @@ fun CourseReminderScreen(
                                         }
                                     }
                                 )
+                                }
+                                if (ReminderPermissionRow.AUTOSTART !in hiddenPermissionRows) {
                                 ArrowPreference(
                                     title = ReminderStr.autostartPermission(),
                                     summary = ReminderStr.autostartPermissionSummary(),
@@ -1339,7 +1416,7 @@ fun CourseReminderScreen(
                                         Text(
                                             text = ReminderStr.goToCheck(),
                                             fontSize = 14.5.sp,
-                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                            color = NexioTheme.colorScheme.onSurfaceVariantActions
                                         )
                                     },
                                     onClick = {
@@ -1347,6 +1424,7 @@ fun CourseReminderScreen(
                                         reminderController.openAppDetailsSettings(onBatterySettingsResult)
                                     }
                                 )
+                                }
                             }
                         }
                     }
@@ -1382,7 +1460,7 @@ fun CourseReminderScreen(
                             label = { mode ->
                                 if (mode == ReminderController.IN_CLASS_TIMING_FULL) ReminderStr.inClassTimingFull() else ReminderStr.inClassTimingBeforeEnd()
                             },
-                            textStyle = MiuixTheme.textStyles.title2,
+                            textStyle = NexioTheme.textStyles.title2,
                             modifier = Modifier.weight(1f)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -1396,7 +1474,7 @@ fun CourseReminderScreen(
                             visibleItemCount = 3,
                             itemHeight = 48.dp,
                             label = { ReminderStr.minutesN(it) },
-                            textStyle = MiuixTheme.textStyles.title2,
+                            textStyle = NexioTheme.textStyles.title2,
                             wrapAround = true,
                             enabled = minutesEnabled,
                             modifier = Modifier.weight(1f)
@@ -1408,8 +1486,8 @@ fun CourseReminderScreen(
                         } else {
                             ReminderStr.inClassBeforeEndDesc(tempInClassLeadMinutes)
                         },
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        style = NexioTheme.textStyles.body2,
+                        color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1419,7 +1497,7 @@ fun CourseReminderScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.cancel(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1428,7 +1506,7 @@ fun CourseReminderScreen(
                             },
                             modifier = Modifier.weight(1f)
                         )
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.ok(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1494,14 +1572,14 @@ fun CourseReminderScreen(
                                 } else {
                                     ReminderStr.methodRegex()
                                 },
-                                style = MiuixTheme.textStyles.body1,
+                                style = NexioTheme.textStyles.body1,
                                 fontWeight = FontWeight.Medium,
-                                color = MiuixTheme.colorScheme.onSurface,
+                                color = NexioTheme.colorScheme.onSurface,
                             )
                             Text(
                                 text = ReminderStr.currentMethod(),
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                style = NexioTheme.textStyles.body2,
+                                color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                             )
                         }
                         Text(
@@ -1511,14 +1589,14 @@ fun CourseReminderScreen(
                                 "$changedCount / ${previewItems.size}"
                             },
                             fontSize = 19.sp,
-                            color = MiuixTheme.colorScheme.primary,
+                            color = NexioTheme.colorScheme.primary,
                             textAlign = TextAlign.End,
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = ReminderStr.willBeRewritten(),
                             fontSize = 15.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                         )
                     }
                     // 整块一个圆角矩形，里面滚动
@@ -1543,8 +1621,8 @@ fun CourseReminderScreen(
                             ) {
                                 Text(
                                     text = ReminderStr.scheduleNoCourseOrClassroom(),
-                                    style = MiuixTheme.textStyles.body2,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    style = NexioTheme.textStyles.body2,
+                                    color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                                 )
                             }
                         } else {
@@ -1588,7 +1666,7 @@ fun CourseReminderScreen(
                     ) {
                         // 只改过才有「恢复自动」可点，没改过就别摆一个按不动的按钮
                         if (overriddenCount > 0) {
-                            TextButton(
+                            FlatTextButton(
                                 text = ReminderStr.restoreAutoN(overriddenCount),
                                 onClick = {
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1601,7 +1679,7 @@ fun CourseReminderScreen(
                                 modifier = Modifier.weight(1f),
                             )
                         }
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.done(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1633,7 +1711,7 @@ fun CourseReminderScreen(
                         visibleItemCount = 3,
                         itemHeight = 60.dp,
                         label = { ReminderStr.minutesN(it) },
-                        textStyle = MiuixTheme.textStyles.title2,
+                        textStyle = NexioTheme.textStyles.title2,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 20.dp)
@@ -1642,7 +1720,7 @@ fun CourseReminderScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.cancel(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1651,7 +1729,7 @@ fun CourseReminderScreen(
                             },
                             modifier = Modifier.weight(1f)
                         )
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.ok(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1660,6 +1738,98 @@ fun CourseReminderScreen(
                                 showMinutesDialog = false
                                 reminderController.startReminderService()
                                 rlog("reminder_service", "start_after_preclass_minutes")
+                            },
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            // 提醒节次范围弹窗
+            OverlayDialog(
+                title = ReminderStr.reminderSections(),
+                show = showSectionRangeDialog,
+                liquidGlassBackdrop = liquidGlassBackdrop,
+                onDismissRequest = { showSectionRangeDialog = false }
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        NumberPicker(
+                            value = tempStartSection,
+                            onValueChange = {
+                                tempStartSection = it
+                                if (tempEndSection < it) tempEndSection = it
+                            },
+                            range = 1..totalSections,
+                            visibleItemCount = 3,
+                            itemHeight = 60.dp,
+                            label = { ReminderStr.sectionN(it) },
+                            textStyle = NexioTheme.textStyles.title2,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "-",
+                            fontSize = 20.sp,
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        )
+                        NumberPicker(
+                            value = tempEndSection.coerceIn(tempStartSection, totalSections),
+                            onValueChange = { tempEndSection = it.coerceAtLeast(tempStartSection) },
+                            range = tempStartSection..totalSections,
+                            visibleItemCount = 3,
+                            itemHeight = 60.dp,
+                            label = { ReminderStr.sectionN(it) },
+                            textStyle = NexioTheme.textStyles.title2,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Text(
+                        text = ReminderStr.sectionRangeHint(),
+                        fontSize = 14.sp,
+                        color = NexioTheme.colorScheme.onSurfaceVariantSummary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp, bottom = 20.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        FlatTextButton(
+                            text = CommonStr.cancel(),
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                rlog("preclass_sections_dialog_cancel")
+                                showSectionRangeDialog = false
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        FlatTextButton(
+                            text = CommonStr.ok(),
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                val start = tempStartSection.coerceIn(1, totalSections)
+                                // 选到最后一节即「全部节次」（存 0 = 不限），与列表里的文案一致；
+                                // 存真实节数的话，日后调大总节数会把它变成「只到第 N 节」
+                                val end = tempEndSection
+                                    .coerceIn(start, totalSections)
+                                    .let { if (it >= totalSections) 0 else it }
+                                rlog("preclass_sections_dialog_ok", "start=$start end=$end")
+                                settingsViewModel.setPreClassReminderStartSection(start)
+                                settingsViewModel.setPreClassReminderEndSection(end)
+                                showSectionRangeDialog = false
+                                reminderController.startReminderService()
+                                rlog("reminder_service", "start_after_preclass_sections")
                             },
                             colors = ButtonDefaults.textButtonColorsPrimary(),
                             modifier = Modifier.weight(1f)
@@ -1695,9 +1865,9 @@ fun CourseReminderScreen(
                             modifier = Modifier.weight(1f)
                         )
                         Text(":",
-                            style = MiuixTheme.textStyles.title2,
+                            style = NexioTheme.textStyles.title2,
                             fontWeight = FontWeight.Bold,
-                            color = MiuixTheme.colorScheme.onSurface,
+                            color = NexioTheme.colorScheme.onSurface,
                             modifier = Modifier
                                 .padding()
                                 .offset(y = (-2).dp))
@@ -1716,7 +1886,7 @@ fun CourseReminderScreen(
                         modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.cancel(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1725,7 +1895,7 @@ fun CourseReminderScreen(
                             },
                             modifier = Modifier.weight(1f)
                         )
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.ok(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)

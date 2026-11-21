@@ -46,6 +46,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.TransformOrigin
@@ -66,16 +67,17 @@ import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.CourseEditStr
 import com.haooz.chedule.i18n.NoteStr
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.components.CardExpandSpec
+import com.haooz.nexioui.iconbutton.IconButton
+import com.haooz.nexioui.cardexpand.CardExpandDefaults
 import com.haooz.chedule.ui.components.cardRevealLayer
 import com.haooz.chedule.ui.components.rememberCardRevealState
 import com.haooz.chedule.ui.components.text.material.Text as Text
-import com.haooz.chedule.ui.effects.motion.morphClip
-import com.haooz.chedule.ui.effects.motion.rememberMorphTransition
+import com.haooz.nexioui.motion.morphClip
+import com.haooz.nexioui.motion.rememberMorphTransition
 import com.haooz.chedule.ui.utils.CourseSorting
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.NativeDocumentAction
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.NativeDocumentEditorChrome
 import com.haooz.chedule.ui.utils.NativeDocumentEditorEffect
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
@@ -87,33 +89,33 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
-import kotlinx.datetime.Clock
-import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.ColorPalette
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
-import top.yukonga.miuix.kmp.icon.extended.Delete
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
-import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import com.haooz.nexioui.button.Button
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.colorpalette.ColorPalette
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Add
+import com.haooz.nexioui.icon.extended.ChevronBackward
+import com.haooz.nexioui.icon.extended.Delete
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBar
+import com.haooz.nexioui.progressiveblurtopbar.ProgressiveBlurTopBar
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.topappbar.rememberSharedScrollBehavior
+import com.haooz.nexioui.topbarmaterial.rememberTopBarMaterialState
+import com.haooz.nexioui.overlaydialog.OverlayDialog
 import com.haooz.softglass.shape.continuousBorder
 import com.haooz.softglass.shape.continuousClip
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 // ===================== Course Grouping Helpers =====================
 
@@ -181,6 +183,8 @@ fun CourseEditScreen(
     dialogBackdrop: GlassBackdrop? = null,
     /** 内嵌时由外部指定内容顶距（与左栏 chromeTop 对齐），替代按顶栏高度推算 */
     contentTopPadding: androidx.compose.ui.unit.Dp? = null,
+    /** false = 先停在起点卡态，等宿主持源卡藏掉、整页快照上屏后再放行展开 */
+    morphStarted: Boolean = true,
 ) {
     // 弹窗默认跟随自身玻璃层；内嵌时由外层指定全屏层
     val dialogGlass: GlassBackdrop? = dialogBackdrop ?: liquidGlassBackdrop
@@ -217,6 +221,8 @@ fun CourseEditScreen(
         onBackStart = onBackStart,
         onBack = onBack,
         embedded = embedded,
+        autoStart = morphStarted,
+        predictiveBackEnabled = { PredictiveBackSettings.enabled },
     )
 
     // ---- UI State ----
@@ -306,19 +312,21 @@ fun CourseEditScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                if (isDark) ComposeColor(0xFF2C2C2C).copy(alpha = morph.state.value.bgAlpha)
-                else ComposeColor.Black.copy(alpha = morph.state.value.bgAlpha)
-            )
+            .drawBehind {
+                val alpha = morph.state.value.bgAlpha
+                drawRect(
+                    if (isDark) ComposeColor(0xFF2C2C2C).copy(alpha = alpha)
+                    else ComposeColor.Black.copy(alpha = alpha)
+                )
+            }
             // 只挡下层穿透、不 consume，避免内部列表/控件滑不动
             .blockTouchPassThrough()
     ) {
-        val s = morph.state.value
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
+                    val s = morph.state.value
                     clip = false
                     transformOrigin = TransformOrigin(s.anchorX, 0.5f)
                     scaleX = s.scale
@@ -327,17 +335,21 @@ fun CourseEditScreen(
                     translationY = s.translationY
                 }
                 .morphClip(morph)
-                .background(MiuixTheme.colorScheme.surface)
+                .background(NexioTheme.colorScheme.surface)
                 .background(cardColor.copy(alpha = cardAlpha))
         ) {
-            if (cardSnapshot != null && s.snapshotAlpha > 0f) {
+            if (cardSnapshot != null) {
                 TransitionLayerImage(
                     snapshot = cardSnapshot,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .fillMaxWidth()
-                        .clip(ContinuousRoundedRectangle((18 / s.scale).dp))
-                        .graphicsLayer { alpha = s.snapshotAlpha },
+                        .graphicsLayer {
+                            val s = morph.state.value
+                            shape = ContinuousRoundedRectangle((18 / s.scale).dp)
+                            clip = true
+                            alpha = s.snapshotAlpha
+                        },
                     contentScale = ContentScale.FillWidth
                 )
             }
@@ -345,7 +357,7 @@ fun CourseEditScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { alpha = s.contentAlpha }
+                    .graphicsLayer { alpha = morph.state.value.contentAlpha }
             ) {
                 Scaffold(
                     modifier = Modifier.consumeWindowInsets(PaddingValues(top = nativeBarInset)),
@@ -367,10 +379,10 @@ fun CourseEditScreen(
                                 contentPadding = {},
                                 startAction = if (embedded || nativeChrome != null) null else {
                                     { backdropAlpha, shadowAlpha ->
-                                    LiquidTopBarButton(
+                                    IconButton(
                                         onClick = { morph.close() },
                                         backdrop = liquidGlassBackdrop,
-                                        icon = MiuixIcons.ChevronBackward,
+                                        icon = NexioIcons.ChevronBackward,
                                         contentDescription = CommonStr.back(),
                                         performHapticFeedback = false,
                                         iconSize = 25.dp,
@@ -381,13 +393,13 @@ fun CourseEditScreen(
                                     }
                                 },
                                 endAction = if (nativeChrome != null) null else { backdropAlpha, shadowAlpha ->
-                                    LiquidTopBarButton(
+                                    IconButton(
                                         onClick = {
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                             showAddCourseSheet = true
                                         },
                                         backdrop = liquidGlassBackdrop,
-                                        icon = MiuixIcons.Add,
+                                        icon = NexioIcons.Add,
                                         contentDescription = CourseEditStr.addCourse(),
                                         iconSize = 24.dp,
                                         backdropAlpha = backdropAlpha,
@@ -414,11 +426,11 @@ fun CourseEditScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(MiuixTheme.colorScheme.surface),
+                                .background(NexioTheme.colorScheme.surface),
                             insideMargin = PaddingValues(0.dp),
                             colors = CardDefaults.defaultColors(
-                                color = MiuixTheme.colorScheme.surface,
-                                contentColor = MiuixTheme.colorScheme.onSurface
+                                color = NexioTheme.colorScheme.surface,
+                                contentColor = NexioTheme.colorScheme.onSurface
                             )
                         ) {
                         // 同一门课的多个时段排序：未排时间的沉底 → 周一→周日 → 实际上课时刻 → 节次 → 周次。
@@ -501,7 +513,7 @@ fun CourseEditScreen(
                                                 text = CourseEditStr.courseColor(),
                                                 fontSize = 17.sp,
                                                 fontWeight = FontWeight.Medium,
-                                                color = MiuixTheme.colorScheme.onSurface,
+                                                color = NexioTheme.colorScheme.onSurface,
                                                 modifier = Modifier.padding(
                                                     start = 16.dp,
                                                     bottom = 10.dp
@@ -524,7 +536,7 @@ fun CourseEditScreen(
                                                             val color = allColors[colorIndex]
                                                             val isSelected = color == selectedColor
                                                             val primaryColor =
-                                                                MiuixTheme.colorScheme.primary
+                                                                NexioTheme.colorScheme.primary
                                                             val borderAlpha by animateFloatAsState(
                                                                 targetValue = if (isSelected) 1f else 0f,
                                                                 animationSpec = tween(durationMillis = 200),
@@ -565,9 +577,9 @@ fun CourseEditScreen(
                                                             val isCustomColor =
                                                                 selectedColor !in allColors
                                                             val hintColor =
-                                                                MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                                                NexioTheme.colorScheme.onSurfaceVariantSummary
                                                             val primaryColor =
-                                                                MiuixTheme.colorScheme.primary
+                                                                NexioTheme.colorScheme.primary
                                                             val customBorderAlpha by animateFloatAsState(
                                                                 targetValue = if (isCustomColor) 1f else 0f,
                                                                 animationSpec = tween(durationMillis = 200),
@@ -608,13 +620,13 @@ fun CourseEditScreen(
                                                                             )
                                                                             else if (isDark) Color(
                                                                                 0xFF363636
-                                                                            ) else MiuixTheme.colorScheme.surface
+                                                                            ) else NexioTheme.colorScheme.surface
                                                                         ),
                                                                     contentAlignment = Alignment.Center
                                                                 ) {
                                                                     if (!isCustomColor) {
                                                                         Icon(
-                                                                            imageVector = MiuixIcons.Add,
+                                                                            imageVector = NexioIcons.Add,
                                                                             contentDescription = CourseEditStr.customColorLabel(),
                                                                             modifier = Modifier.size(
                                                                                 18.dp
@@ -646,8 +658,8 @@ fun CourseEditScreen(
                                     AnimatedVisibility(
                                         visible = !isDeleting,
                                         enter = EnterTransition.None,
-                                        exit = shrinkVertically(CardExpandSpec.HeightSpring) +
-                                            fadeOut(tween(CardExpandSpec.FADE_MILLIS)),
+                                        exit = shrinkVertically(CardExpandDefaults.HeightSpring) +
+                                            fadeOut(tween(CardExpandDefaults.FadeMillis)),
                                     ) {
                                         // 入场统一走 CardRevealSpec；收拢退场仍由外面的 AnimatedVisibility 负责
                                         val cardReveal = rememberCardRevealState()
@@ -681,7 +693,7 @@ fun CourseEditScreen(
                                                 else ButtonDefaults.buttonColors(),
                                             ) {
                                                 Icon(
-                                                    imageVector = MiuixIcons.Delete,
+                                                    imageVector = NexioIcons.Delete,
                                                     contentDescription = null,
                                                     modifier = Modifier.size(20.dp),
                                                     tint = Color(0xFFF44336)
@@ -723,7 +735,7 @@ fun CourseEditScreen(
                                     .padding(top = 16.dp),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                TextButton(
+                                FlatTextButton(
                                     text = CommonStr.cancel(),
                                     onClick = {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -731,7 +743,7 @@ fun CourseEditScreen(
                                     },
                                     modifier = Modifier.weight(1f)
                                 )
-                                TextButton(
+                                FlatTextButton(
                                     text = CommonStr.ok(),
                                     onClick = {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -766,7 +778,7 @@ fun CourseEditScreen(
                                 .padding(top = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            TextButton(
+                            FlatTextButton(
                                 text = CommonStr.cancel(),
                                 onClick = {
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -774,7 +786,7 @@ fun CourseEditScreen(
                                 },
                                 modifier = Modifier.weight(1f)
                             )
-                            TextButton(
+                            FlatTextButton(
                                 text = CommonStr.delete(),
                                 onClick = {
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -906,7 +918,7 @@ private fun CourseGroupCard(
                         text = CourseEditStr.location(),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface
+                        color = NexioTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     Text(
@@ -914,7 +926,7 @@ private fun CourseGroupCard(
                         modifier = Modifier.fillMaxWidth(0.8f),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                         textAlign = TextAlign.End
                     )
                 }
@@ -935,7 +947,7 @@ private fun CourseGroupCard(
                         text = CourseEditStr.teacher(),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface
+                        color = NexioTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     Text(
@@ -943,7 +955,7 @@ private fun CourseGroupCard(
                         modifier = Modifier.fillMaxWidth(0.8f),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                         textAlign = TextAlign.End
                     )
                 }
@@ -961,7 +973,7 @@ private fun CourseGroupCard(
                             text = NoteStr.noteLabel(),
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.onSurface
+                            color = NexioTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.weight(1f))
                         Text(
@@ -969,7 +981,7 @@ private fun CourseGroupCard(
                             modifier = Modifier.fillMaxWidth(0.8f),
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.primary,
+                            color = NexioTheme.colorScheme.primary,
                             textAlign = TextAlign.End,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
@@ -982,7 +994,7 @@ private fun CourseGroupCard(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
                         .height(0.5.dp)
-                        .background(MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.07f))
+                        .background(NexioTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.07f))
                 )
 
                 Row(
@@ -995,7 +1007,7 @@ private fun CourseGroupCard(
                         text = CourseEditStr.classTime(),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface
+                        color = NexioTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     Text(
@@ -1003,7 +1015,7 @@ private fun CourseGroupCard(
                         modifier = Modifier.fillMaxWidth(0.8f),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                         textAlign = TextAlign.End
                     )
                 }
@@ -1019,7 +1031,7 @@ private fun CourseGroupCard(
                         text = CourseEditStr.classWeeks(),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface
+                        color = NexioTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     Text(
@@ -1027,7 +1039,7 @@ private fun CourseGroupCard(
                         modifier = Modifier.fillMaxWidth(0.8f),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                         textAlign = TextAlign.End
                     )
                 }
@@ -1038,7 +1050,7 @@ private fun CourseGroupCard(
             Text(
                 text = CourseEditStr.coursesShareConfig(group.courses.size),
                 fontSize = 12.sp,
-                color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                color = NexioTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                 modifier = Modifier.padding(start = 32.dp, top = 4.dp)
             )
         }

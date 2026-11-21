@@ -32,18 +32,19 @@ import com.haooz.chedule.data.platform.FeedbackKind
 import com.haooz.chedule.data.platform.RoadmapRecord
 import com.haooz.chedule.i18n.FeedbackStr
 import com.haooz.chedule.ui.components.FeedbackKindLabel
+import com.haooz.chedule.ui.components.FeedbackReplyBlock
 import com.haooz.chedule.ui.components.FeedbackStageBar
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 @Composable
 fun FeedbackRoadmapScreen(
@@ -160,7 +161,7 @@ private fun roadmapRank(status: String): Int = when (status) {
 
 @Composable
 private fun RoadmapCard(record: RoadmapRecord) {
-    val theme = MiuixTheme.colorScheme
+    val theme = NexioTheme.colorScheme
 
     Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
         Row(
@@ -185,7 +186,7 @@ private fun RoadmapCard(record: RoadmapRecord) {
             if (metaText.isNotBlank()) {
                 Text(
                     text = metaText,
-                    style = MiuixTheme.textStyles.body2,
+                    style = NexioTheme.textStyles.body2,
                     color = theme.onSurfaceVariantSummary,
                     maxLines = 1,
                 )
@@ -194,7 +195,7 @@ private fun RoadmapCard(record: RoadmapRecord) {
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = record.title,
-            style = MiuixTheme.textStyles.body1,
+            style = NexioTheme.textStyles.body1,
             fontWeight = FontWeight.Medium,
             color = theme.onSurface,
             maxLines = 2,
@@ -204,13 +205,17 @@ private fun RoadmapCard(record: RoadmapRecord) {
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = record.summary,
-                style = MiuixTheme.textStyles.body2,
+                style = NexioTheme.textStyles.body2,
                 color = theme.onSurfaceVariantActions,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        // 与上方内容（说明 / 标题）之间 14dp
+        if (record.statusNote.isNotBlank()) {
+            Spacer(modifier = Modifier.height(10.dp))
+            FeedbackReplyBlock(reply = record.statusNote)
+        }
+        // 与上方内容（说明 / 官方回复）之间 14dp
         Spacer(modifier = Modifier.height(14.dp))
         FeedbackStageBar(status = record.status, kind = record.kind)
     }

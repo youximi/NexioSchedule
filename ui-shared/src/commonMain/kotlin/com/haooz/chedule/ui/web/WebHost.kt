@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.model.Course
+import com.haooz.chedule.data.school.AdapterData
 
 // ════════════════════════════════════════════════════════════════════════
 //  网页内容宿主 —— 教务导入用的 WebView 的平台无关契约
@@ -38,6 +39,19 @@ class WebHostConfig(
      * Android 的 WebView 在 Compose 里走自己的布局，不使用这个值。
      */
     val contentBottomPadding: Dp = 0.dp,
+    /** 学校名（原生底部条要展示）；Android / iOS 用不到，默认空。 */
+    val schoolName: String = "",
+    /** 全部课表名（原生底部条的「执行导入」选择目标课表用）。 */
+    val scheduleNames: List<String> = emptyList(),
+    /** 当前课表名（原生选择器的默认项）。 */
+    val currentScheduleName: String = "",
+    /** 适配器来源：拾光 / AI 仓库，决定脚本从哪里下载（原生宿主执行导入时用）。 */
+    val adapterSource: Int = AdapterData.SOURCE_SHUIGUANG,
+    /**
+     * 是否在 document-start 注入网络记录器。
+     * 只给 AI 教务导入开：它需要看页面自己打了哪些接口；
+     */
+    val netRecorderEnabled: Boolean = false,
 )
 
 /**
@@ -104,6 +118,20 @@ interface WebHost {
 
     /** 在页面里执行 JS（导入脚本靠它注入） */
     fun evaluateJavascript(js: String)
+
+    /**
+     * 执行 JS 并把结果回传 —— AI 教务导入读页面 / 打接口要用它。
+     *
+     * 约定：JS 必须自己 `return` 一个字符串（调用方会包一层 `JSON.stringify` 或直接给文本），
+     * 回传的也是那个字符串原文。平台侧「执行了但拿不到值」时回 null ——
+     * 调用方要把它当成「这平台读不了页面」，而不是「页面是空的」。
+     *
+     * 默认实现只执行不回传：桌面 / 鸿蒙暂不支持 AI 教务，走 [NoopWebHost] 也无从回传。
+     */
+    fun evaluateJavascriptWithResult(js: String, onResult: (String?) -> Unit) {
+        evaluateJavascript(js)
+        onResult(null)
+    }
 
     /** 告知导入桥「往哪个课表导」（对应 `window.currentTableId`） */
     fun setImportTableId(tableId: String)

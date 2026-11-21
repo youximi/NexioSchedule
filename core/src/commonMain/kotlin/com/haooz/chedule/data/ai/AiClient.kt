@@ -1,5 +1,6 @@
 package com.haooz.chedule.data.ai
 
+import com.haooz.chedule.data.platform.ApiEndpoints
 import com.haooz.chedule.data.platform.HttpService
 import com.haooz.chedule.data.platform.StatsReporter
 import com.haooz.chedule.data.util.jsonToPlainValue
@@ -18,7 +19,24 @@ import kotlinx.serialization.json.put
 data class AiCapabilities(
     val enabled: Boolean,
     val tasks: List<String>,
+    /** 该设备今天的免费额度；没带 device_id 或服务端没给时为 null */
+    val quota: AiQuota? = null,
+    /** 服务端当前模型 ID，仅兜底展示；客户端不拿它做判断，调用只发任务名 */
+    val model: String = "",
+    /** App 上显示的名字（服务端预设的别名，如 `hy4` → `Hy4`），优先用它 */
+    val modelDisplay: String = "",
 )
+
+/** 免费额度的今日用量（按设备）。 */
+data class AiQuota(
+    val shrinkUsed: Int,
+    val shrinkLimit: Int,
+    val agentUsed: Int,
+    val agentLimit: Int,
+) {
+    val shrinkRemaining: Int get() = (shrinkLimit - shrinkUsed).coerceAtLeast(0)
+    val agentRemaining: Int get() = (agentLimit - agentUsed).coerceAtLeast(0)
+}
 
 /**
  * AI 调用的结果。
@@ -36,11 +54,14 @@ sealed class AiResult<out T> {
 /**
  * 云端 AI 客户端。
  *
- * ## 为什么请求都发给自己的服务器
+ * ## 免费额度 / 自带服务商
  *
- * apikey 只存服务端（加密落盘），App 从不接触，所以没有「配置 AI 地址/模型」的入口
- * —— 那些都在服务端改，改完所有客户端立刻生效，不用发版。也因此 `/api/ai/task`
+ * 默认所有请求都发给自己的服务器：apikey 只存服务端（加密落盘），App 从不接触，
+ * 地址与模型都在服务端改，改完所有客户端立刻生效，不用发版。也因此 `/api/ai/task`
  * 只接受**预设任务**（prompt 模板在云端），不能拿它当通用 chat 代理。
+ *
+ * 用户在「AI 功能」页填了自己的服务商（BYOK）后，[shrinkLabels] 改走 [AiDirectClient]
+ * 直连供应商：不占免费额度，key 只在本机，更不经过我们的服务器。
  *
  * ## 加密
  *
@@ -64,6 +85,12 @@ class AiClient(
         val cleanCourses = courses.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
         if (cleanRooms.isEmpty() && cleanCourses.isEmpty()) {
             return AiResult.Error("课表里还没有课程名和地点")
+        }
+
+        // 用户配了自己的服务商就直连，不占免费额度、也不经过我们的服务器
+        val byok = AiByokStore.load()
+        if (byok.isUsable) {
+            return AiDirectClient(http).shrinkLabels(classrooms = cleanRooms, courses = cleanCourses)
         }
 
         val body = buildJsonObject {
@@ -104,64 +131,67 @@ class AiClient(
     }
 
     /**
-     * 发一次加密请求并解开响应。
+     * 问服务端「AI 能不能用 + 今天这台设备还剩多少免费额度」。
      *
-     * 响应体既可能是 `{iv, ct}`（正常），也可能是服务端的明文错误体（信封都解不开时）。
-     * 后者一律当失败 —— 拿不到会话密钥就没有可读内容。
+     * 与 [shrinkLabels] 共用加密通道；不消耗额度，只读。
      */
-    private suspend fun roundTrip(path: String, body: JsonObject): AiResult<String> {
-        if (!AiServerKey.isConfigured()) {
-            return AiResult.Error("这个版本还没内置服务端公钥")
+    suspend fun capabilities(): AiResult<AiCapabilities> {
+        val body = buildJsonObject {
+            put("device_id", StatsReporter.ensureDeviceId())
         }
-
-        // 会话密钥一次性：加密请求与解密响应必须是同一个 session
-        val session = try {
-            AiCryptoSession(AiServerKey.PUBLIC_KEY_PEM)
-        } catch (e: Exception) {
-            return AiResult.Error("加密会话创建失败：${e.describe()}")
+        val plain = when (val r = roundTrip("$baseUrl/capabilities", body)) {
+            is AiResult.Ok -> r.value
+            is AiResult.Error -> return r
         }
-        val envelope = try {
-            session.encrypt(body.toString())
-        } catch (e: Exception) {
-            return AiResult.Error("请求加密失败：${e.describe()}")
+        val obj = runCatching { parseJsonObject(plain) }
+            .getOrElse { return AiResult.Error("服务端响应不是 JSON") }
+        if (obj.optString("error").isNotEmpty()) {
+            return AiResult.Error(obj.optString("error"))
         }
-
-        val payload = buildJsonObject {
-            put("ek", envelope.ek)
-            put("iv", envelope.iv)
-            put("ct", envelope.ct)
-        }.toString()
-
-        val result = try {
-            http.post(path, payload)
-        } catch (e: Exception) {
-            return AiResult.Error("网络请求失败：${e.describe()}")
+        val tasks = obj.optJsonArray("tasks")?.mapNotNull { element ->
+            jsonToPlainValue(element) as? String
+        }.orEmpty()
+        val quota = obj.optJsonObject("quota")?.let { q ->
+            val shrink = q.optJsonObject("shrink") ?: return@let null
+            val agent = q.optJsonObject("agent") ?: return@let null
+            AiQuota(
+                shrinkUsed = shrink.optInt("used", 0),
+                shrinkLimit = shrink.optInt("limit", 0),
+                agentUsed = agent.optInt("used", 0),
+                agentLimit = agent.optInt("limit", 0),
+            )
         }
-        if (!result.isSuccessful) {
-            return AiResult.Error("服务端返回 ${result.code}")
-        }
-
-        val response = runCatching { parseJsonObject(result.text) }.getOrNull()
-            ?: return AiResult.Error("响应不是 JSON")
-        val iv = response.optString("iv")
-        val ct = response.optString("ct")
-        if (iv.isEmpty() || ct.isEmpty()) {
-            // 走到这里说明服务端是明文回的错误体，把它带出来
-            val serverError = response.optString("error")
-            return AiResult.Error(serverError.ifEmpty { "响应里没有密文" })
-        }
-        return try {
-            AiResult.Ok(session.decrypt(iv, ct))
-        } catch (e: Exception) {
-            AiResult.Error("响应解密失败：${e.describe()}")
-        }
+        return AiResult.Ok(
+            AiCapabilities(
+                enabled = obj.optString("enabled").toBoolean(),
+                tasks = tasks,
+                quota = quota,
+                model = obj.optString("model").trim(),
+                modelDisplay = obj.optString("model_display").trim(),
+            )
+        )
     }
 
-    private fun Exception.describe(): String = message ?: this::class.simpleName ?: "未知错误"
+    /**
+     * 测试本机配置的服务商能否接通（只发一条最小请求）。
+     *
+     * @return 耗时（毫秒）
+     */
+    suspend fun testByokConnection(): AiResult<Long> {
+        val cfg = AiByokStore.load()
+        if (!cfg.isUsable) return AiResult.Error("服务商配置不完整")
+        return AiDirectClient(http).ping(cfg)
+    }
+
+    /**
+     * 发一次加密请求并解开响应 —— 具体实现在 [aiRoundTrip]（教务 agent 共用同一份）。
+     */
+    private suspend fun roundTrip(path: String, body: JsonObject): AiResult<String> =
+        aiRoundTrip(http, path, body)
 
     companion object {
         /** 与 `NoticeFetcher` / `StatsReporter` 等服务地址同源。 */
-        const val DEFAULT_BASE_URL = "http://182.92.193.223:3000/api/ai"
+        const val DEFAULT_BASE_URL = ApiEndpoints.AI
 
         /** 服务端 `AI_TASKS` 里上课地点精简的任务名，逐字不能改。 */
         const val TASK_SHRINK_CLASSROOMS = "shrink_classrooms"
@@ -171,7 +201,8 @@ class AiClient(
 /**
  * 混合加密信封：App 与服务端之间唯一的请求/响应形态。
  *
- * 服务端跑在明文 HTTP 上（HTTPS 会被拦），所以请求体和响应体都必须是密文：
+ * 服务端现在通过域名 HTTPS 访问；信封加密保留为第二层：即使链路被降级到明文，
+ * 请求体和响应体也始终是密文。
  *
  * 1. App 每次随机生成 32 字节会话密钥；
  * 2. 会话密钥用服务端 RSA 公钥（OAEP + SHA-256）加密，得到 [ek]；
@@ -193,7 +224,7 @@ data class AiEnvelope(val ek: String, val iv: String, val ct: String)
  * （`server/ai-rsa-private.pem` 或环境变量 `AI_RSA_PRIVATE`）。
  *
  * ⚠ 换服务器或重新生成密钥对后必须同步改这里，否则信封解不开、AI 直接不可用。
- * 取服务端公钥：`curl -H "Authorization: Bearer $DASH_TOKEN" http://<host>/api/ai/public-key`
+ * 取服务端公钥：`curl -H "Authorization: Bearer $DASH_TOKEN" https://nexioschedule.icu/api/ai/public-key`
  */
 object AiServerKey {
 

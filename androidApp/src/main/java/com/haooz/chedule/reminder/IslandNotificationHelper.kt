@@ -19,7 +19,6 @@ import com.haooz.chedule.ui.activities.MainActivity
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -60,9 +59,6 @@ object IslandNotificationHelper {
     private val scope = CoroutineScope(Dispatchers.IO)
     // 串行化 Shizuku bypass，避免并发导致 XMSF 网络状态错乱
     private val shizukuBypassMutex = Mutex()
-    // 课中倒计时由系统 Chronometer 自刷；ticker 已退役，仅保留 stop 以兼容清理路径
-    private var inClassTickJob: Job? = null
-    private val inClassTickLock = Any()
 
     // 岛倒计时用系统 Chronometer；切换靠精确闹钟（可能丢/滞后），故持久化状态由每分钟刷新链对账兜底
     object IslandState {
@@ -181,39 +177,7 @@ object IslandNotificationHelper {
             }
         }
 
-        // 课中提醒：记录上次下发的剩余分钟/进度，避免每分钟无意义重发
-        private const val K_LAST_REMAINING = "last_remaining_minutes"
-        private const val K_LAST_PROGRESS = "last_progress"
-
-        fun lastRemainingMinutes(context: Context, testMode: Boolean = false): Int =
-            store(context, testMode)
-                .getInt(K_LAST_REMAINING, Int.MIN_VALUE)
-
-        fun saveLastRemainingMinutes(context: Context, minutes: Int, testMode: Boolean = false) {
-            store(context, testMode).edit {
-                putInt(K_LAST_REMAINING, minutes)
-            }
-        }
-
-        fun lastProgress(context: Context, testMode: Boolean = false): Int =
-            store(context, testMode)
-                .getInt(K_LAST_PROGRESS, Int.MIN_VALUE)
-
-        fun saveLastProgress(context: Context, progress: Int, testMode: Boolean = false) {
-            store(context, testMode).edit {
-                putInt(K_LAST_PROGRESS, progress)
-            }
-        }
-
-        fun clearLastRemainingMinutes(context: Context, testMode: Boolean = false) {
-            store(context, testMode).edit {
-                remove(K_LAST_REMAINING)
-                remove(K_LAST_PROGRESS)
-            }
-        }
-
         fun clear(context: Context, testMode: Boolean = false) {
-            stopInClassTicker()
             store(context, testMode).edit {
                 clear()
             }
@@ -354,7 +318,6 @@ object IslandNotificationHelper {
     }
 
     fun cancelIslandNotifications(context: Context) {
-        stopInClassTicker()
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.cancel(ISLAND_NOTIFICATION_ID)
         manager.cancel(ISLAND_STARTED_NOTIFICATION_ID)
@@ -372,12 +335,8 @@ object IslandNotificationHelper {
         title: String,
         content: String,
         courseName: String? = null,
-        section: String? = null,
-        startTime: String? = null,
-        endTime: String? = null,
         classroom: String? = null,
-        courseStartMillis: Long? = null,
-        testMode: Boolean = false
+        courseStartMillis: Long? = null
     ): String {
         val json = JSONObject()
 
@@ -474,8 +433,8 @@ object IslandNotificationHelper {
                 }
                 put("timerInfo", timerInfo)
                 put("subContent", AndroidNotifStr.location())
-                // 展开态放得下完整地点，这里给原文 —— 精简只服务于缩略态
-                put("subTitle", classroom ?: "")
+                // 展开态「地点」行：地点精简开启时同样用精简结果（课程名仍保持原文）
+                put("subTitle", shortClassroom)
                 put("colorContent", "#666666")
                 put("colorContentDark", "#aaaaaa")
                 put("colorTitle", "#222222")
@@ -595,8 +554,6 @@ object IslandNotificationHelper {
         val prefs = AppStorage.store("course_reminder_prefs")
         val expandGlowEnabled = prefs.getBoolean(KEY_ISLAND_EXPAND_GLOW_ENABLED, DEFAULT_ISLAND_EXPAND_GLOW)
         val aodMode = prefs.getInt("island_aod_mode", 0)
-        // 课中岛缩略态 B 区：0=正在上课（静态文案），1=距下课倒计时
-        val inClassRightMode = prefs.getInt("island_in_class_right_mode", 0)
 
         val now = System.currentTimeMillis()
         val counting = courseEndMillis > now
@@ -697,52 +654,41 @@ object IslandNotificationHelper {
                 })
             })
 
-            // 缩略态：模板2，与课前同构；A区课程名，B区可在「正在上课」与距下课倒计时间自选
+            // 缩略态：模板2，与课前同构；A区固定「正在上课」，B区固定距下课倒计时
             put("param_island", JSONObject().apply {
                 put("islandProperty", 1)
                 put("islandTimeout", 3600)
                 put("bigIslandArea", JSONObject().apply {
                     put("templateNo", 2)
-                    // A区：课程名称
+                    // A区：固定「正在上课」
                     put("imageTextInfoLeft", JSONObject().apply {
                         put("type", 1)
                         put("textInfo", JSONObject().apply {
-                            put("title", courseName)
+                            put("title", AndroidNotifStr.inClassNow())
                             put("content", "")
                             put("showHighlightColor", false)
                             put("narrowFont", false)
                         })
                     })
-                    if (inClassRightMode == 1 && counting) {
-                        // B区：距下课倒计时。与课前「N分钟上课」同一套 sameWidthDigitInfo 机制，
-                        // 由系统 timer 自刷到下课，App 无需按分钟重推，也不会让岛反复弹出
-                        put("sameWidthDigitInfo", JSONObject().apply {
-                            put("content", AndroidNotifStr.endsIn())
-                            put("showHighlightColor", false)
-                            put("timerInfo", JSONObject().apply {
-                                put("timerType", -1)
-                                put("timerWhen", courseEndMillis)
-                                put("timerTotal", 0L)
-                                put("timerSystemCurrent", now)
-                            })
+                    // B区：固定距下课倒计时。与课前「N分钟上课」同一套 sameWidthDigitInfo 机制，
+                    // 由系统 timer 自刷到下课，App 无需按分钟重推，也不会让岛反复弹出
+                    put("sameWidthDigitInfo", JSONObject().apply {
+                        put("content", AndroidNotifStr.endsIn())
+                        put("showHighlightColor", false)
+                        put("timerInfo", JSONObject().apply {
+                            put("timerType", -1)
+                            put("timerWhen", courseEndMillis)
+                            put("timerTotal", 0L)
+                            put("timerSystemCurrent", now)
                         })
-                        put("textInfo", JSONObject().apply {
-                            put("frontTitle", "")
-                            put("title", "")
-                            put("content", "")
-                            put("showHighlightColor", false)
-                            put("narrowFont", false)
-                        })
-                    } else {
-                        // B区：静态文案
-                        put("textInfo", JSONObject().apply {
-                            put("frontTitle", "")
-                            put("title", if (counting) AndroidNotifStr.inClassNow() else AndroidNotifStr.classEnded())
-                            put("content", "")
-                            put("showHighlightColor", false)
-                            put("narrowFont", false)
-                        })
-                    }
+                    })
+                    put("textInfo", JSONObject().apply {
+                        put("frontTitle", "")
+                        put("title", "")
+                        put("content", "")
+                        put("showHighlightColor", false)
+                        put("narrowFont", false)
+                    })
                 })
                 put("smallIslandArea", JSONObject().apply {
                     put("picInfo", JSONObject().apply {
@@ -764,12 +710,8 @@ object IslandNotificationHelper {
         title: String,
         content: String,
         courseName: String? = null,
-        section: String? = null,
-        startTime: String? = null,
-        endTime: String? = null,
         classroom: String? = null,
         courseStartMillis: Long? = null,
-        testMode: Boolean = false,
         useShizukuBypass: Boolean = true,
         islandParamsOverride: String? = null
     ) {
@@ -799,12 +741,8 @@ object IslandNotificationHelper {
             title = title,
             content = content,
             courseName = courseName,
-            section = section,
-            startTime = startTime,
-            endTime = endTime,
             classroom = classroom,
-            courseStartMillis = courseStartMillis,
-            testMode = testMode
+            courseStartMillis = courseStartMillis
         )
 
         val picsBundle = Bundle().apply {
@@ -889,9 +827,6 @@ object IslandNotificationHelper {
             title = title,
             content = content,
             courseName = courseName,
-            section = section,
-            startTime = startTime,
-            endTime = endTime,
             classroom = classroom,
             courseStartMillis = courseStartMillis
         )
@@ -962,12 +897,8 @@ object IslandNotificationHelper {
             title = title,
             content = content,
             courseName = courseName,
-            section = section,
-            startTime = startTime,
-            endTime = endTime,
             classroom = classroom,
-            courseStartMillis = courseStartTimestamp,
-            testMode = true
+            courseStartMillis = courseStartTimestamp
         )
 
         val picsBundle = Bundle().apply {
@@ -1033,8 +964,30 @@ object IslandNotificationHelper {
         val effectiveCustomTime = isCustomTime || state?.isCustomTime == true
 
         if (inClassOn) {
-            val showNow = endMillis > startMillis &&
-                CourseReminderHelper.shouldShowInClassNow(context, startMillis, endMillis)
+            // 下课时间未知/非法（节次时间缺项、自定义时间只填了开始）：课中态根本做不出来。
+            // 这时若照旧 markSwitched，就会留下一个 endMillis<=startMillis 的 active state：
+            // expiredByEnd 永远为假，expiredByShow 又被 inClassOn 短路，状态再也收不掉，
+            // 刷新链会因此被拖成整日每分钟唤醒。退化成静态「已上课」，15 秒后自然收起。
+            if (endMillis <= startMillis) {
+                NexioLog.w(
+                    TAG,
+                    "onClassStart: no usable end window (start=$startMillis end=$endMillis), " +
+                        "fallback to started card"
+                )
+                sendClassStartedNotification(
+                    context = context,
+                    courseName = courseName,
+                    classroom = classroom,
+                    section = section,
+                    startTime = startTime,
+                    endTime = endTime,
+                    notificationId = notificationId,
+                    testMode = effectiveTestMode,
+                    isCustomTime = effectiveCustomTime
+                )
+                return
+            }
+            val showNow = CourseReminderHelper.shouldShowInClassNow(context, startMillis, endMillis)
             if (showNow) {
                 // 已进「全程 / 距下课 N 分钟」窗口：切课中卡
                 sendInClassIslandNotification(
@@ -1110,18 +1063,13 @@ object IslandNotificationHelper {
             title = title,
             content = content,
             courseName = courseName,
-            section = section,
-            startTime = startTime,
-            endTime = endTime,
             classroom = classroom,
-            courseStartMillis = null,
-            testMode = effectiveTestMode
+            courseStartMillis = null
         )
 
         val startMillis = IslandState.snapshot(context, effectiveTestMode)?.startMillis ?: -1L
         IslandState.updateNotificationId(context, startedId, testMode = effectiveTestMode)
         IslandState.markSwitched(context, testMode = effectiveTestMode)
-        IslandState.clearLastRemainingMinutes(context, testMode = effectiveTestMode)
         scheduleIslandDismiss(context, startedId, startMillis)
     }
 
@@ -1178,20 +1126,14 @@ object IslandNotificationHelper {
                 }
             },
             courseName = courseName,
-            section = section,
-            startTime = startTime,
-            endTime = endTime,
             classroom = classroom,
-            testMode = effectiveTestMode,
             useShizukuBypass = true,
             islandParamsOverride = params
         )
 
         IslandState.updateNotificationId(context, inClassId, testMode = effectiveTestMode)
         IslandState.markSwitched(context, testMode = effectiveTestMode)
-        IslandState.clearLastRemainingMinutes(context, testMode = effectiveTestMode)
         scheduleIslandDismissAt(context, inClassId, startMillis, endMillis)
-        stopInClassTicker()
         kickWidgetRefresh(context)
     }
 
@@ -1199,25 +1141,6 @@ object IslandNotificationHelper {
     fun msUntilNextMinuteBoundary(remainMs: Long): Long {
         val toBoundary = remainMs % 60_000L
         return (if (toBoundary <= 0L) 60_000L else toBoundary) + 200L
-    }
-
-    // 课中倒计时由系统 Chronometer 自刷，App 不再按分钟重推内容
-    fun stopInClassTicker() {
-        synchronized(inClassTickLock) {
-            inClassTickJob?.cancel()
-            inClassTickJob = null
-        }
-    }
-
-    // 课中岛内容无需按分钟重推：距下课数字由系统 timer 自刷；对账只负责进窗补发与下课收起
-    fun updateInClassIslandIfNeeded(
-        context: Context,
-        state: IslandState.Snapshot,
-        testMode: Boolean = false
-    ) {
-        if (!isInClassReminderEnabled(context)) return
-        if (state.endMillis <= System.currentTimeMillis()) return
-        if (!isInClassNotificationId(state.notificationId)) return
     }
 
     private fun formatClock(millis: Long): String {

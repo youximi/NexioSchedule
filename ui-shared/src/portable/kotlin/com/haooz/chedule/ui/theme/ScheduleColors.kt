@@ -11,7 +11,7 @@ import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.util.hsvToRgb
 import com.haooz.chedule.data.util.rgbToHsv
 import com.materialkolor.hct.Hct
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.theme.NexioTheme
 
 @Immutable
 internal data class CourseColors(val tint: Color, val onTint: Color)
@@ -31,29 +31,43 @@ internal fun readableCourseTextColor(preferred: Color, background: Color): Color
 /** 同名课程稳定映射到系统的主、次、第三色系；只影响显示，不改写课程自定义颜色。 */
 @Composable
 internal fun rememberCourseColors(course: Course, isDark: Boolean): CourseColors {
-    if (!MiuixTheme.isDynamicColor) {
+    if (!NexioTheme.isDynamicColor) {
         return remember(course.colorRes) {
             val color = Color(course.colorRes)
             CourseColors(color, color)
         }
     }
-    val colors = MiuixTheme.colorScheme
+    val colors = NexioTheme.colorScheme
     val (seed, foreground) = when (((course.name.hashCode() % 3) + 3) % 3) {
         0 -> colors.primary to colors.onPrimaryContainer
         1 -> colors.secondaryContainer to colors.onSecondaryContainer
         else -> colors.tertiaryContainer to colors.onTertiaryContainer
     }
     return remember(seed, foreground, isDark) {
-        // 课程卡使用半透明着色层，取强调色调而非很淡的 container，保证着色程度可见。
-        val hct = Hct.fromInt(seed.toArgb())
-        val tint = Color(Hct.from(hct.hue, hct.chroma, if (isDark) 80.0 else 40.0).toInt())
-        CourseColors(tint, foreground)
+        CourseColors(cachedCourseTint(seed, isDark), foreground)
     }
+}
+
+/**
+ * 课程色板只有 3 个种子，但卡片数量是几百张；Hct 往返换算放在共享缓存里，
+ * 避免首次组合时每张卡各算一次（首次加载的主要 CPU 热点之一）。
+ */
+private val courseTintCache = HashMap<Long, Color>()
+
+private fun cachedCourseTint(seed: Color, isDark: Boolean): Color {
+    val seedArgb = seed.toArgb()
+    val key = (seedArgb.toLong() shl 1) or (if (isDark) 1L else 0L)
+    courseTintCache[key]?.let { return it }
+    val hct = Hct.fromInt(seedArgb)
+    val tint = Color(Hct.from(hct.hue, hct.chroma, if (isDark) 80.0 else 40.0).toInt())
+    if (courseTintCache.size > 32) courseTintCache.clear()
+    courseTintCache[key] = tint
+    return tint
 }
 
 @Composable
 internal fun scheduleAccentColor(): Color =
-    if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.primary else Color(0xFF3482FF)
+    if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.primary else Color(0xFF3482FF)
 
 /**
  * 课卡文字色。

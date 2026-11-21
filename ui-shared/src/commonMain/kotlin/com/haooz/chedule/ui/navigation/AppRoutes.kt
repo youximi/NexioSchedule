@@ -7,12 +7,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -38,6 +36,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +52,8 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
@@ -92,8 +93,14 @@ import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.FeedbackStr
 import com.haooz.chedule.i18n.HolidayStr
+import com.haooz.chedule.i18n.ImportStr
+import com.haooz.chedule.i18n.McpStr
+import com.haooz.chedule.i18n.SettingsStr
 import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.ui.activities.AboutScreen
+import com.haooz.chedule.ui.activities.eduimport.AiEduImportScreen
+import com.haooz.chedule.ui.activities.eduimport.AiEduImportHistoryScreen
+import com.haooz.chedule.ui.activities.eduimport.AiEduPreviewScreen
 import com.haooz.chedule.ui.activities.AiImportScreen
 import com.haooz.chedule.ui.activities.AppreciateAuthorScreen
 import com.haooz.chedule.ui.activities.BackupAndMigrationScreen
@@ -105,8 +112,8 @@ import com.haooz.chedule.ui.activities.CommunicationScreen
 import com.haooz.chedule.ui.activities.CourseManageScreen
 import com.haooz.chedule.ui.activities.CourseReminderScreen
 import com.haooz.chedule.ui.activities.CourseTimeSettingsScreen
-import com.haooz.chedule.ui.activities.EduImportUpdater
-import com.haooz.chedule.ui.activities.EducationalImportScreen
+import com.haooz.chedule.ui.activities.eduimport.EduImportUpdater
+import com.haooz.chedule.ui.activities.eduimport.EducationalImportScreen
 import com.haooz.chedule.ui.activities.FeedbackHistoryScreen
 import com.haooz.chedule.ui.activities.FeedbackRoadmapScreen
 import com.haooz.chedule.ui.activities.FeedbackScreen
@@ -114,42 +121,53 @@ import com.haooz.chedule.ui.activities.HolidaySettingsScreen
 import com.haooz.chedule.ui.activities.LicenseScreen
 import com.haooz.chedule.ui.activities.PreferenceSettingsScreen
 import com.haooz.chedule.ui.activities.PrivacyPolicyScreen
+import com.haooz.chedule.ui.activities.ReminderPermissionRow
 import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.activities.TimeConfigCardBounds
+import com.haooz.chedule.ui.activities.UpdateChangelogMorphLayer
+import com.haooz.chedule.ui.activities.UpdateChangelogOrigin
 import com.haooz.chedule.ui.activities.UpdateHeroChromeState
 import com.haooz.chedule.ui.activities.UpdatePreferencesScreen
 import com.haooz.chedule.ui.activities.UpdateSettingsScreen
+import com.haooz.chedule.ui.activities.WebDavBottomActionState
 import com.haooz.chedule.ui.activities.WebDavSettingsScreen
-import com.haooz.chedule.ui.activities.WebImportScreen
+import com.haooz.chedule.ui.activities.eduimport.WebImportScreen
 import com.haooz.chedule.ui.activities.WidgetCustomizeOverlay
 import com.haooz.chedule.ui.activities.WidgetCustomizeRequest
 import com.haooz.chedule.ui.activities.WidgetIntroScreen
 import com.haooz.chedule.ui.activities.main.RenderSettingsPane
 import com.haooz.chedule.ui.activities.main.SettingsPaneArgs
 import com.haooz.chedule.ui.activities.rememberFeedbackFormState
+import com.haooz.chedule.ui.activities.weather.SkyPhase
 import com.haooz.chedule.ui.activities.weather.WeatherScreen
+import com.haooz.chedule.ui.activities.weather.skyPhaseOrNow
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenu
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenuItem
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownShadowPadding
-import com.haooz.chedule.ui.basic.LiquidGlassTextButton
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.nexioui.textbutton.TextButton
+import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.chedule.ui.basic.ShortcutMenu
 import com.haooz.chedule.ui.basic.ShortcutMenuItem
-import com.haooz.chedule.ui.components.CapsuleSegmentedControl
+import com.haooz.nexioui.segmentedcontrol.SegmentedControl
 import com.haooz.chedule.ui.components.DocumentPageScaffold
 import com.haooz.chedule.ui.components.HorizontalPageSwitch
 import com.haooz.chedule.ui.components.rememberPageSwitchState
 import com.haooz.chedule.ui.components.text.material.Text as Text
-import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
-import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
+import com.haooz.nexioui.motion.MORPH_BACKGROUND_SHRINK
+import com.haooz.nexioui.motion.OobeCubicOutEasing
+import com.haooz.nexioui.motion.OobeQuartOutEasing
+import com.haooz.chedule.ui.screens.AiFeaturesScreen
 import com.haooz.chedule.ui.screens.CourseEditScreen
+import com.haooz.chedule.ui.screens.McpServiceScreen
 import com.haooz.chedule.ui.screens.ScheduleSettingsScreen
-import com.haooz.chedule.ui.screens.SettingsSearchHeader
+import com.haooz.chedule.ui.activities.setting.SettingsSearchHeader
 import com.haooz.chedule.ui.screens.TimeConfigEditScreen
-import com.haooz.chedule.ui.screens.rememberSettingsSearchState
-import com.haooz.chedule.ui.theme.rememberAppThemeController
+import com.haooz.chedule.ui.activities.setting.rememberSettingsSearchState
+import com.haooz.chedule.ui.theme.AppNexioTheme
+import com.haooz.chedule.ui.theme.rememberAppThemeColors
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
+import com.haooz.chedule.ui.utils.MirroredSnapshotBackdrop
 import com.haooz.chedule.ui.utils.NativeDocumentAction
 import com.haooz.chedule.ui.utils.NativeDocumentActionEffect
 import com.haooz.chedule.ui.utils.NativeDocumentOverlayEffect
@@ -159,6 +177,7 @@ import com.haooz.chedule.ui.utils.ThirdPartySharePayload
 import com.haooz.chedule.ui.utils.ThirdPartyShareSource
 import com.haooz.chedule.ui.utils.TransitionLayerImage
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
+import com.haooz.chedule.ui.utils.freezeSource
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.isIosPlatform
 import com.haooz.chedule.ui.utils.rememberScreenCornerRadiiPx
@@ -176,24 +195,28 @@ import com.haooz.softglass.platform.isRenderEffectSupported
 import com.haooz.softglass.shape.addContinuousRoundRect
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Delete
-import top.yukonga.miuix.kmp.icon.extended.Edit
-import top.yukonga.miuix.kmp.icon.extended.More
-import top.yukonga.miuix.kmp.icon.extended.Ok
-import top.yukonga.miuix.kmp.icon.extended.Play
-import top.yukonga.miuix.kmp.icon.extended.Refresh
-import top.yukonga.miuix.kmp.icon.extended.Update
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
+import com.haooz.nexioui.progressindicator.CircularProgressIndicator
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Delete
+import com.haooz.nexioui.icon.extended.Edit
+import com.haooz.nexioui.icon.extended.More
+import com.haooz.nexioui.icon.extended.Ok
+import com.haooz.nexioui.icon.extended.Play
+import com.haooz.nexioui.icon.extended.Refresh
+import com.haooz.nexioui.icon.extended.Update
+import com.haooz.nexioui.topbarmaterial.LocalTopBarMaterial
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.navigationback.NavigationBackHandlerFor
 
 /**
  * 路由宿主的跨平台部分：路由跳转、状态接线、Updater 订阅，平台能力一律参数注入。
@@ -236,7 +259,7 @@ private fun BoxScope.BottomActionButton(
     onClick: () -> Unit,
 ) {
     val horizontalPadding = if (isTabletWidth()) 20.dp else 16.dp
-    LiquidGlassTextButton(
+    TextButton(
         text = text,
         enabled = enabled,
         backdrop = backdrop,
@@ -281,7 +304,7 @@ private fun RefreshTopBarAction(
             )
         }
     } else {
-        LiquidTopBarButton(
+        IconButton(
             onClick = onClick,
             backdrop = backdrop,
             icon = icon,
@@ -316,7 +339,60 @@ fun EducationalImportRoute(
         onFinish = { router.popBack() },
         // 用路由自己的 router（不用 LocalAppRouter：iOS 原生文档页容器不 provide 它）
         onOpenWebImport = { router.navigate(AppRoute.WebImport) },
+        onOpenAiImport = { router.navigate(AppRoute.AiEduImport) },
     )
+}
+
+/**
+ * AI 教务导入路由：模型自己读页面 / 打接口 / 写适配脚本。
+ *
+ * 网页宿主与 [WebImportRoute] 同一个契约（[WebHost]），区别是没有现成适配脚本：
+ * 脚本由模型现场生成，执行前被沙箱接住，课程一律走本地预览确认。
+ */
+@Composable
+fun AiEduImportRoute(
+    router: AppRouter,
+    webHostFactory: @Composable (WebHostConfig, WebHostEvents) -> WebHost,
+) {
+    AiEduImportScreen(
+        webHostFactory = webHostFactory,
+        onBack = { router.popBack() },
+        onOpenHistory = { router.navigate(AppRoute.AiEduImportHistory) },
+        onOpenPreview = { router.navigate(AppRoute.AiEduPreview) },
+        // 选中项已由 AI 页写入 EduImportSelection，这里只负责推入现有适配器导入页
+        onOpenAdapterImport = { router.navigate(AppRoute.WebImport) },
+    )
+}
+
+/**
+ * AI 教务导入的课程预览：确认写入后，预览页与 AI 导入页一起收掉。
+ *
+ * 草稿没有参数通道，经 `AiEduPreviewHolder` 带进来（出栈时清空）。
+ */
+@Composable
+fun AiEduPreviewRoute(router: AppRouter) {
+    DocumentPageScaffold(
+        title = ImportStr.aiEduPreviewTitle(),
+        onBack = { router.popBack() },
+    ) { scrollBehavior, backdrop ->
+        AiEduPreviewScreen(
+            onImported = {
+                // 先退预览页，再退 AI 导入页
+                router.popBack()
+                router.popBack()
+            },
+            scrollBehavior = scrollBehavior,
+            liquidGlassBackdrop = backdrop,
+        )
+    }
+}
+
+/** AI 教务导入历史：AI 写过的每一版脚本。 */
+@Composable
+fun AiEduImportHistoryRoute(router: AppRouter) {
+    DocumentRoute(title = ImportStr.aiEduHistoryTitle(), router = router) { scrollBehavior ->
+        AiEduImportHistoryScreen(scrollBehavior = scrollBehavior)
+    }
 }
 
 /**
@@ -411,12 +487,12 @@ fun FeedbackRoute(router: AppRouter) {
         // 类型选择挂在标题下方：顶栏下方的兄弟层，随大标题高度变化上移
         headerOverlay = { backdrop, scrollBehavior ->
             if (state.submittedId == null) {
-                CapsuleSegmentedControl(
+                SegmentedControl(
                     options = listOf(FeedbackStr.typeBug(), FeedbackStr.typeFeature()),
                     selectedIndex = state.kind.ordinal,
                     onSelect = { i -> state.kind = if (i == 0) FeedbackKind.Bug else FeedbackKind.Feature },
                     backdrop = backdrop,
-                    scrollBehavior = scrollBehavior,
+                    surfaceAlpha = LocalTopBarMaterial.current?.alpha?.invoke() ?: 1f,
                     modifier = segmentControlModifier(),
                 )
             }
@@ -478,7 +554,7 @@ fun FeedbackRoadmapRoute(router: AppRouter) {
         title = FeedbackStr.roadmapTitle(),
         onBack = { router.popBack() },
         headerOverlay = { backdrop, scrollBehavior ->
-            CapsuleSegmentedControl(
+            SegmentedControl(
                 // 0 = 全部，1 = 新功能，2 = Bug 修复
                 options = listOf(
                     FeedbackStr.filterAll(),
@@ -498,7 +574,7 @@ fun FeedbackRoadmapRoute(router: AppRouter) {
                     }
                 },
                 backdrop = backdrop,
-                scrollBehavior = scrollBehavior,
+                surfaceAlpha = LocalTopBarMaterial.current?.alpha?.invoke() ?: 1f,
                 modifier = segmentControlModifier(),
             )
         },
@@ -532,10 +608,21 @@ fun WeatherRoute(router: AppRouter) {
     // 数据、载入态、主题底色；折叠动画由脚手架自己的 mustRecord 负责。
     val snapshot by WeatherStore.snapshot.collectAsState()
     val loading by WeatherStore.loading.collectAsState()
-    val surface = MiuixTheme.colorScheme.surface
-    val recordKey = remember(snapshot, loading, surface) { listOf(snapshot, loading, surface) }
     val scope = rememberCoroutineScope()
     val refresh: () -> Unit = { scope.launch { WeatherStore.requestRefresh() } }
+
+    // 天气页的主题跟着「时段」走，而不是应用深浅色：白天永远浅色、夜里永远深色。
+    // 每分钟对一次，页面开着跨过日落也能平滑切换。
+    var minuteTick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000L)
+            minuteTick++
+        }
+    }
+    val night = remember(snapshot, minuteTick) { skyPhaseOrNow(snapshot) == SkyPhase.Night }
+    val recordKey = remember(snapshot, loading, night) { listOf(snapshot, loading, night) }
+    val weatherThemeColors = rememberAppThemeColors(isDark = night)
 
     // iOS 原生文档页的顶栏由 Swift 画，Compose 顶栏看不到，因此把同一动作发布给原生 chrome。
     NativeDocumentActionEffect(
@@ -548,23 +635,29 @@ fun WeatherRoute(router: AppRouter) {
         )
     )
 
-    DocumentPageScaffold(
-        title = WeatherStr.title(),
-        onBack = { router.popBack() },
-        recordKey = recordKey,
-        endAction = { backdropAlpha, shadowAlpha, backdrop ->
-            RefreshTopBarAction(
-                loading = loading,
-                icon = MiuixIcons.Normal.Refresh,
-                contentDescription = CommonStr.update(),
-                onClick = refresh,
-                backdrop = backdrop,
-                backdropAlpha = backdropAlpha,
-                shadowAlpha = shadowAlpha,
-            )
-        },
-    ) { scrollBehavior, _ ->
-        WeatherScreen(scrollBehavior = scrollBehavior)
+    // 主题必须包住整个脚手架：顶栏、返回按钮、页面底色都在里面取色，
+    // 只包内容层会出现「深色页配浅色顶栏」的割裂。
+    AppNexioTheme(colors = weatherThemeColors) {
+        CompositionLocalProvider(LocalForcedDarkTheme provides night) {
+            DocumentPageScaffold(
+                title = WeatherStr.title(),
+                onBack = { router.popBack() },
+                recordKey = recordKey,
+                endAction = { backdropAlpha, shadowAlpha, backdrop ->
+                    RefreshTopBarAction(
+                        loading = loading,
+                        icon = NexioIcons.Normal.Refresh,
+                        contentDescription = CommonStr.update(),
+                        onClick = refresh,
+                        backdrop = backdrop,
+                        backdropAlpha = backdropAlpha,
+                        shadowAlpha = shadowAlpha,
+                    )
+                },
+            ) { scrollBehavior, _ ->
+                WeatherScreen(scrollBehavior = scrollBehavior)
+            }
+        }
     }
 }
 
@@ -581,6 +674,7 @@ fun WeatherRoute(router: AppRouter) {
 fun SettingsRoute(
     router: AppRouter,
     showUpdateSettings: Boolean = true,
+    showWidgetEntry: Boolean = true,
     settingsPane: (@Composable (SettingsPaneArgs) -> Unit)? = null,
 ) {
     val shiftViewModel = shiftViewModel()
@@ -588,11 +682,11 @@ fun SettingsRoute(
     val isShiftMode by shiftViewModel.isShiftMode.collectAsState()
     // 设置页始终跟应用主题、不被壁纸锁深色。主题必须包住整个 DocumentPageScaffold：
     // 顶栏材质、玻璃返回按钮、页面底色都在脚手架里取色，包在内容层里会继续用外层主题。
-    val settingsThemeController =
-        rememberAppThemeController(isDark = isAppDarkTheme())
+    val settingsThemeColors =
+        rememberAppThemeColors(isDark = isAppDarkTheme())
     // 搜索框挂在 headerOverlay（页面采样层之外），否则它自己会被录进采样层，玻璃折射到自己。
     val searchState = rememberSettingsSearchState()
-    MiuixTheme(controller = settingsThemeController) {
+    AppNexioTheme(colors = settingsThemeColors) {
         CompositionLocalProvider(LocalForcedDarkTheme provides null) {
             DocumentPageScaffold(
                 title = CommonStr.settings(),
@@ -623,6 +717,7 @@ fun SettingsRoute(
                         liquidGlassBackdrop = backdrop,
                         searchState = searchState,
                         showUpdateSettings = showUpdateSettings,
+                        showWidgetEntry = showWidgetEntry,
                     ),
                 )
             }
@@ -649,6 +744,9 @@ fun PreferenceSettingsRoute(
     onInvalidateWeatherCache: () -> Unit = {},
     onSetTaskExcludedFromRecents: (Boolean) -> Unit = {},
     onThemeDarkChanged: (Boolean) -> Unit = {},
+    showPredictiveBackAnimation: Boolean = true,
+    showHideFromRecents: Boolean = true,
+    showMonetColor: Boolean = true,
 ) {
     DocumentPageScaffold(
         title = ChromeStr.appPreferences(),
@@ -663,6 +761,9 @@ fun PreferenceSettingsRoute(
             hasLocationPermission = hasLocationPermission,
             onInvalidateWeatherCache = onInvalidateWeatherCache,
             onSetTaskExcludedFromRecents = onSetTaskExcludedFromRecents,
+            showPredictiveBackAnimation = showPredictiveBackAnimation,
+            showHideFromRecents = showHideFromRecents,
+            showMonetColor = showMonetColor,
         )
     }
 }
@@ -681,6 +782,109 @@ fun UpdateSettingsRoute(
     val pageBlur = remember { Animatable(0f) }
     // 翻开更新日志时，顶栏（返回 / 更多）要把点击让给卡片：状态由页面写、脚手架读
     val heroChrome = remember { UpdateHeroChromeState() }
+    // 更新日志页：翻转过程中由同一张卡长成的整页。整个翻/长过程都在本路由内完成，
+    // 不 navigate、不换页，所以结束时看到的就是这一份页面本身。
+    var changelogOrigin by remember { mutableStateOf<UpdateChangelogOrigin?>(null) }
+    var changelogOpen by remember { mutableStateOf(false) }
+    var changelogMounted by remember { mutableStateOf(false) }
+    // 翻出去的那张卡已经在这一层真正出图：这时才让列表里那张隐身，避免首帧看到卡一闪
+    var changelogCardReady by remember { mutableStateOf(false) }
+    // 整页内容等翻转走起来再挂：点击那一帧只画卡和遮罩，翻不会先楞一拍
+    var changelogPageReady by remember { mutableStateOf(false) }
+    // 整页已经完成首帧布局：这时才放动画，避免动画跑在页面还没出来的空帧上
+    var changelogPageLaidOut by remember { mutableStateOf(false) }
+    // 翻与长各有自己的时长：翻转 600ms 先翻完，页面缩放裁切 720ms 后收尾
+    val changelogFlip = remember { Animatable(0f) }
+    val changelogGrow = remember { Animatable(0f) }
+    // 背景：与项目里「卡片 → 整页」的连贯动画同一套做法——整页按需录一层，缩放/模糊的是快照，
+    // 不缩放实时页面；缩小后四周露出部分由 MirroredSnapshotBackdrop 用镜像补齐。
+    val changelogPageLayer = rememberGraphicsLayer()
+    var changelogRecordRequest by remember { mutableIntStateOf(0) }
+    val changelogLastRecorded = remember { intArrayOf(-1) }
+    var changelogBackdrop by remember { mutableStateOf<TransitionLayerSnapshot?>(null) }
+    val changelogBackdropScale = remember { Animatable(1f) }
+    val changelogBackdropBlur = remember { Animatable(0f) }
+    val routeScope = rememberCoroutineScope()
+    val routeDensity = LocalDensity.current
+
+    suspend fun capturePageSnapshot(): TransitionLayerSnapshot? {
+        changelogRecordRequest++
+        while (changelogLastRecorded[0] != changelogRecordRequest) withFrameNanos { }
+        return if (changelogPageLayer.size.width > 0 && changelogPageLayer.size.height > 0) {
+            TransitionLayerSnapshot(changelogPageLayer)
+        } else {
+            null
+        }
+    }
+    LaunchedEffect(changelogOpen) {
+        if (changelogOpen) {
+            // 先把日志页排好，再开动画：页面上屏后立刻开跑，不空等也不空帧
+            changelogPageReady = true
+            snapshotFlow { changelogPageLaidOut }.first { it }
+            coroutineScope {
+                launch {
+                    changelogFlip.animateTo(
+                        1f,
+                        tween(600, easing = OobeQuartOutEasing),
+                    )
+                }
+                launch {
+                    changelogGrow.animateTo(
+                        1f,
+                        tween(720, easing = OobeQuartOutEasing),
+                    )
+                }
+                // 背景缩放/模糊与翻转同一条曲线：1 → 0.9、0 → 12px（与连贯动画同款数值）
+                launch {
+                    changelogBackdropScale.animateTo(
+                        MORPH_BACKGROUND_SHRINK,
+                        tween(600, easing = OobeQuartOutEasing),
+                    )
+                }
+                launch {
+                    changelogBackdropBlur.animateTo(
+                        12f,
+                        tween(600, easing = OobeQuartOutEasing),
+                    )
+                }
+            }
+        } else if (changelogMounted) {
+            coroutineScope {
+                launch {
+                    changelogFlip.animateTo(
+                        0f,
+                        tween(460, easing = OobeCubicOutEasing),
+                    )
+                }
+                launch {
+                    changelogGrow.animateTo(
+                        0f,
+                        tween(540, easing = OobeCubicOutEasing),
+                    )
+                }
+                launch {
+                    changelogBackdropScale.animateTo(
+                        1f,
+                        tween(460, easing = OobeCubicOutEasing),
+                    )
+                }
+                launch {
+                    changelogBackdropBlur.animateTo(
+                        0f,
+                        tween(460, easing = OobeCubicOutEasing),
+                    )
+                }
+            }
+            changelogMounted = false
+            changelogPageReady = false
+            // 快照撤掉，实时页面重新开始画
+            changelogBackdrop = null
+            // 层卸载后把列表里那张卡放出来，否则退出后卡片一直是隐身的
+            changelogCardReady = false
+            // 下次打开是新挂的整页，等它重新布局（关闭途中又点开时则沿用上一次的结果）
+            changelogPageLaidOut = false
+        }
+    }
     // 右上角「更多」+ 玻璃下拉。触发器由组件自己画（收起态那颗圆），这里只维护开合状态。
     var moreOpen by remember { mutableStateOf(false) }
     val moreFraction = remember { Animatable(0f) }
@@ -697,97 +901,157 @@ fun UpdateSettingsRoute(
         val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         (if (statusBarTop > 0.dp) statusBarTop - 20.dp else 17.dp).coerceAtLeast(0.dp).toPx()
     }
-    DocumentPageScaffold(
-        title = ChromeStr.updateSettingsTitle(),
-        onBack = { router.popBack() },
-        pageBlurDp = { pageBlur.value },
-        chromeBlocked = heroChrome.blocked,
-        onChromeBlockedTap = { heroChrome.dismiss() },
-        endAction = { barAlpha, _, _ ->
-            SideEffect { moreMaterialAlpha.floatValue = barAlpha }
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .onGloballyPositioned {
-                        val pos = it.positionInRoot()
-                        moreSlotTopPx.floatValue = pos.y
-                        moreSlotRightPx.floatValue = pos.x + it.size.width
+    Box(modifier = Modifier.fillMaxSize()) {
+        // 翻日志页时的背景：与连贯动画同款做法——整页按需录一层快照，
+        // 缩放/模糊的是快照；快照覆盖期间实时页面整块不画，避免缩放重排
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(NexioTheme.colorScheme.surface)
+                .drawWithContent {
+                    if (changelogLastRecorded[0] != changelogRecordRequest) {
+                        changelogPageLayer.record { this@drawWithContent.drawContent() }
+                        changelogLastRecorded[0] = changelogRecordRequest
+                        drawLayer(changelogPageLayer)
+                    } else if (changelogBackdrop == null) {
+                        drawContent()
                     }
-            )
-        },
-        overlay = { backdrop ->
-            Box(modifier = Modifier.fillMaxSize()) {
-                if (moreOpen) {
-                    // 点空白收起
+                }
+        ) {
+            DocumentPageScaffold(
+                title = ChromeStr.updateSettingsTitle(),
+                onBack = { router.popBack() },
+                pageBlurDp = { pageBlur.value },
+                chromeBlocked = heroChrome.blocked,
+                onChromeBlockedTap = { heroChrome.dismiss() },
+                endAction = { barAlpha, _, _ ->
+                    SideEffect { moreMaterialAlpha.floatValue = barAlpha }
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) { moreOpen = false }
+                            .size(42.dp)
+                            .onGloballyPositioned {
+                                val pos = it.positionInRoot()
+                                moreSlotTopPx.floatValue = pos.y
+                                moreSlotRightPx.floatValue = pos.x + it.size.width
+                            }
                     )
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .onGloballyPositioned {
-                            val pos = it.positionInRoot()
-                            overlayLeftPx.floatValue = pos.x
-                            overlayTopPx.floatValue = pos.y
-                            overlayWidthPx.floatValue = it.size.width.toFloat()
-                        }
-                        .graphicsLayer {
-                            clip = false
-                            // 占位槽顶边减掉阴影外扩，才是菜单内容顶边（相对浮层，去掉页面平移）
-                            val measured = moreSlotTopPx.floatValue - overlayTopPx.floatValue - shadowPaddingPx
-                            translationY = if (measured > 0f) measured else fallbackAnchorTopPx
-                        }
-                        .offset {
-                            IntOffset(
-                                x = (
-                                    moreSlotRightPx.floatValue -
-                                        (overlayLeftPx.floatValue + overlayWidthPx.floatValue)
-                                    ).roundToInt() + LiquidGlassDropdownShadowPadding.roundToPx(),
-                                y = 0,
+                },
+                overlay = { backdrop ->
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        if (moreOpen) {
+                            // 点空白收起
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                    ) { moreOpen = false }
                             )
-                        },
-                    contentAlignment = Alignment.TopEnd,
-                ) {
-                    LiquidGlassDropdownMenu(
-                        show = moreOpen,
-                        backdrop = backdrop,
-                        fraction = moreFraction,
-                        onDismiss = { moreOpen = false },
-                        onExpand = {
-                            // 更新日志卡片翻开期间，更多按钮在这一层（压住顶栏）之上，
-                            // 顶栏拦截盖不到：这里直接转成「退出卡片」，与点遮罩同义
-                            if (heroChrome.blocked) heroChrome.dismiss() else moreOpen = true
-                        },
-                        triggerIcon = MiuixIcons.More,
-                        triggerContentDescription = CommonStr.more(),
-                        materialAlpha = moreMaterialAlpha.floatValue,
-                    ) {
-                        LiquidGlassDropdownMenuItem(
-                            text = ChromeStr.updatePreferencesTitle(),
-                            onClick = {
-                                moreOpen = false
-                                router.navigate(AppRoute.UpdatePreferences)
-                            },
-                        )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .onGloballyPositioned {
+                                    val pos = it.positionInRoot()
+                                    overlayLeftPx.floatValue = pos.x
+                                    overlayTopPx.floatValue = pos.y
+                                    overlayWidthPx.floatValue = it.size.width.toFloat()
+                                }
+                                .graphicsLayer {
+                                    clip = false
+                                    // 占位槽顶边减掉阴影外扩，才是菜单内容顶边（相对浮层，去掉页面平移）
+                                    val measured = moreSlotTopPx.floatValue - overlayTopPx.floatValue - shadowPaddingPx
+                                    translationY = if (measured > 0f) measured else fallbackAnchorTopPx
+                                }
+                                .offset {
+                                    IntOffset(
+                                        x = (
+                                            moreSlotRightPx.floatValue -
+                                                (overlayLeftPx.floatValue + overlayWidthPx.floatValue)
+                                            ).roundToInt() + LiquidGlassDropdownShadowPadding.roundToPx(),
+                                        y = 0,
+                                    )
+                                },
+                            contentAlignment = Alignment.TopEnd,
+                        ) {
+                            LiquidGlassDropdownMenu(
+                                show = moreOpen,
+                                backdrop = backdrop,
+                                fraction = moreFraction,
+                                onDismiss = { moreOpen = false },
+                                onExpand = {
+                                    // 更新日志卡片翻开期间，更多按钮在这一层（压住顶栏）之上，
+                                    // 顶栏拦截盖不到：这里直接转成「退出卡片」，与点遮罩同义
+                                    if (heroChrome.blocked) heroChrome.dismiss() else moreOpen = true
+                                },
+                                triggerIcon = NexioIcons.More,
+                                triggerContentDescription = CommonStr.more(),
+                                materialAlpha = moreMaterialAlpha.floatValue,
+                            ) {
+                                LiquidGlassDropdownMenuItem(
+                                    text = ChromeStr.updatePreferencesTitle(),
+                                    onClick = {
+                                        moreOpen = false
+                                        router.navigate(AppRoute.UpdatePreferences)
+                                    },
+                                )
+                            }
+                        }
                     }
-                }
+                },
+            ) { scrollBehavior, backdrop ->
+                UpdateSettingsScreen(
+                    scrollBehavior = scrollBehavior,
+                    liquidGlassBackdrop = backdrop,
+                    updateController = updateController,
+                    pageBlur = pageBlur,
+                    heroChrome = heroChrome,
+                    heroHidden = changelogCardReady,
+                    onOpenChangelog = { origin ->
+                        changelogOrigin = origin
+                        // 点击这一帧就把层和整页挂上，页面布局完再开跑
+                        changelogPageReady = true
+                        changelogMounted = true
+                        routeScope.launch {
+                            // 与课程卡 / 作息编辑同款：先让浮层那张卡以同一位置、同一外观上屏，
+                            // 再把列表里那张隐身——屏幕看不出变化，接着拍的整页快照里就没有原卡片了
+                            snapshotFlow { changelogCardReady }.first { it }
+                            changelogBackdropScale.snapTo(1f)
+                            changelogBackdropBlur.snapTo(0f)
+                            val background = capturePageSnapshot()
+                            background?.freezeSource()
+                            changelogBackdrop = background
+                            changelogOpen = true
+                        }
+                    },
+                )
             }
-        },
-    ) { scrollBehavior, backdrop ->
-        UpdateSettingsScreen(
-            scrollBehavior = scrollBehavior,
-            liquidGlassBackdrop = backdrop,
-            updateController = updateController,
-            pageBlur = pageBlur,
-            heroChrome = heroChrome,
-            onOpenChangelog = { router.navigate(AppRoute.Changelog) },
-        )
+        }
+
+        // 背景快照：按 shrink 居中缩小，四周露出部分用镜像补齐，模糊跟着同一条进度
+        changelogBackdrop?.let { snapshot ->
+            MirroredSnapshotBackdrop(
+                snapshot = snapshot,
+                shrink = { changelogBackdropScale.value },
+                backgroundColor = NexioTheme.colorScheme.surface,
+                blurRadiusPx = { changelogBackdropBlur.value * routeDensity.density },
+            )
+        }
+
+        // 同一张卡翻出来的日志页：盖在更新页（含顶栏）之上，长满即页面本身
+        val cardOrigin = changelogOrigin
+        if (changelogMounted && cardOrigin != null) {
+            UpdateChangelogMorphLayer(
+                origin = cardOrigin,
+                flip = { changelogFlip.value },
+                grow = { changelogGrow.value },
+                pageReady = changelogPageReady,
+                onPageLaidOut = { changelogPageLaidOut = true },
+                onCardReady = { changelogCardReady = true },
+                onClose = { changelogOpen = false },
+            )
+        }
     }
 }
 
@@ -924,7 +1188,7 @@ fun HolidaySettingsRoute(
         title = ChromeStr.holidaysTitle(),
         onBack = { router.popBack() },
         headerOverlay = { backdrop, scrollBehavior ->
-            CapsuleSegmentedControl(
+            SegmentedControl(
                 options = listOf(
                     HolidayStr.tabAnnual(),
                     HolidayStr.tabOther(),
@@ -935,14 +1199,14 @@ fun HolidaySettingsRoute(
                 freezeKey = pillFreezeKey,
                 alignKey = pillAlignKey,
                 backdrop = backdrop,
-                scrollBehavior = scrollBehavior,
+                surfaceAlpha = LocalTopBarMaterial.current?.alpha?.invoke() ?: 1f,
                 modifier = segmentControlModifier(),
             )
         },
         endAction = { backdropAlpha, shadowAlpha, backdrop ->
             RefreshTopBarAction(
                 loading = loading,
-                icon = MiuixIcons.Normal.Update,
+                icon = NexioIcons.Normal.Update,
                 contentDescription = CommonStr.update(),
                 onClick = { requestYear(year) },
                 backdrop = backdrop,
@@ -999,6 +1263,12 @@ fun WidgetIntroRoute(
      */
     onPickWidgetWallpaper: (widthPx: Int, heightPx: Int, onPicked: (ImageBitmap?) -> Unit) -> Unit =
         { _, _, _ -> },
+    /** 「自定义」入口（换壁纸浮层）开关：鸿蒙的卡片是 ArkTS 渲染，改不了这份预览 */
+    showCustomizeEntry: Boolean = true,
+    /** 底部「边距样式」选择器开关：只对安卓 RemoteViews 生效 */
+    showPaddingSelector: Boolean = true,
+    /** 添加引导文案；null 时按平台走安卓 / iOS 默认文案 */
+    guideText: String? = null,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     var showGuideDialog by remember { mutableStateOf(false) }
@@ -1034,17 +1304,17 @@ fun WidgetIntroRoute(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = if (isIosPlatform) {
+                            text = guideText ?: if (isIosPlatform) {
                                 ChromeStr.widgetGuideIos()
                             } else {
                                 ChromeStr.widgetGuideAndroid()
                             },
                             fontSize = 14.sp,
                             lineHeight = 24.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions
                         )
                         Spacer(modifier = Modifier.height(20.dp))
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.done(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1065,6 +1335,8 @@ fun WidgetIntroRoute(
                 // 但「已回位、还没摘」的那一刻要放出来 —— 否则摘浮层那帧是空的
                 hiddenPage = if (customizeSettled) null else customizeRequest?.page,
                 wallpaperRevision = wallpaperRevision,
+                showCustomizeEntry = showCustomizeEntry,
+                showPaddingSelector = showPaddingSelector,
             )
         }
 
@@ -1097,6 +1369,47 @@ fun WidgetIntroRoute(
 }
 
 /**
+ * AI 功能路由：免费额度、自带服务商设置与各功能入口。
+ */
+@Composable
+fun AiFeaturesRoute(router: AppRouter) {
+    DocumentPageScaffold(
+        title = SettingsStr.aiFeatures(),
+        onBack = { router.popBack() },
+    ) { scrollBehavior, backdrop ->
+        AiFeaturesScreen(
+            scrollBehavior = scrollBehavior,
+            liquidGlassBackdrop = backdrop,
+            onOpenMcp = { router.navigate(AppRoute.McpService) },
+            onOpenReminder = { router.navigate(AppRoute.CourseReminder) },
+            onOpenEduImport = { router.navigate(AppRoute.AiEduImport) },
+            onOpenTextImport = { router.navigate(AppRoute.AiImport) },
+        )
+    }
+}
+
+/**
+ * MCP 服务路由：本地服务开关、地址与接入说明。
+ *
+ * @param onCopyToClipboard 复制服务器地址；各端注入系统剪切板实现，默认空实现。
+ */
+@Composable
+fun McpServiceRoute(
+    router: AppRouter,
+    onCopyToClipboard: (String) -> Unit = {},
+) {
+    DocumentPageScaffold(
+        title = McpStr.title(),
+        onBack = { router.popBack() },
+    ) { scrollBehavior, _ ->
+        McpServiceScreen(
+            scrollBehavior = scrollBehavior,
+            onCopyToClipboard = onCopyToClipboard,
+        )
+    }
+}
+
+/**
  * 课程提醒路由。
  *
  * @param reminderController Android 注入 `AndroidReminderController(context)`（闹钟 / 电池优化 / 权限 / 系统设置页跳转）；桌面/iOS 用 [NoopReminderController]。
@@ -1109,6 +1422,8 @@ fun CourseReminderRoute(
     reminderController: ReminderController = NoopReminderController,
     testActionLabel: String = ChromeStr.testNotification(),
     onSendTestNotification: (() -> Unit)? = null,
+    /** 本平台没有对应系统概念的权限行（鸿蒙传 EXACT_ALARM/BATTERY/DND/AUTOSTART） */
+    hiddenPermissionRows: Set<ReminderPermissionRow> = emptySet(),
 ) {
     DocumentPageScaffold(
         title = ChromeStr.courseReminders(),
@@ -1127,18 +1442,23 @@ fun CourseReminderRoute(
             scrollBehavior = scrollBehavior,
             liquidGlassBackdrop = backdrop,
             reminderController = reminderController,
+            hiddenPermissionRows = hiddenPermissionRows,
         )
     }
 }
 
-/** WebDAV 配置路由：只管服务器参数与测试连接，备份/恢复统一在备份中心。 */
+/** WebDAV 配置路由：服务器参数、连接测试，以及底部「立即恢复」最新云端备份。 */
 @Composable
 fun WebDavSettingsRoute(
     router: AppRouter,
+    backupFileController: BackupFileController = NoopBackupFileController,
     onHolidayDataChanged: () -> Unit = {},
 ) {
     var connected by remember { mutableStateOf(false) }
     var onTestConnection by remember { mutableStateOf({}) }
+    // 「立即恢复」画在页面外的浮层上（玻璃要折射页面内容），状态由页面写入
+    val bottomAction = remember { WebDavBottomActionState() }
+    val hapticFeedback = LocalHapticFeedback.current
 
     NativeDocumentActionEffect(NativeDocumentAction(
         symbol = if (connected) "checkmark" else "play.fill",
@@ -1151,15 +1471,26 @@ fun WebDavSettingsRoute(
         title = ChromeStr.webdavBackup(),
         onBack = { router.popBack() },
         endAction = { backdropAlpha, shadowAlpha, backdrop ->
-            LiquidTopBarButton(
+            IconButton(
                 onClick = { onTestConnection() },
                 backdrop = backdrop,
-                icon = if (connected) MiuixIcons.Ok else MiuixIcons.Play,
+                icon = if (connected) NexioIcons.Ok else NexioIcons.Play,
                 contentDescription = if (connected) ChromeStr.connected() else ChromeStr.testConnection(),
                 backdropAlpha = backdropAlpha,
                 shadowAlpha = shadowAlpha,
                 iconOffset = if (!connected) DpOffset(x = 2.dp, y = 0.dp) else DpOffset.Zero,
                 iconTint = if (connected) Color(0xFF4CAF50) else Color.Unspecified,
+            )
+        },
+        overlay = { backdrop ->
+            BottomActionButton(
+                text = bottomAction.busy ?: BackupStr.restoreNow(),
+                enabled = bottomAction.enabled,
+                backdrop = backdrop,
+                onClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                    bottomAction.onClick?.invoke()
+                },
             )
         },
     ) { scrollBehavior, _ ->
@@ -1168,6 +1499,8 @@ fun WebDavSettingsRoute(
             onConnectedChange = { connected = it },
             onTestConnectionReady = { onTestConnection = it },
             onHolidayDataChanged = onHolidayDataChanged,
+            bottomAction = bottomAction,
+            backupFileController = backupFileController,
         )
     }
 }
@@ -1197,6 +1530,10 @@ fun BackupAndMigrationRoute(
     onExportToWearable: suspend (scheduleName: String) -> String? = { null },
     watchSyncController: WatchSyncController = NoopWatchSyncController,
     onSyncToCalendar: suspend (scheduleName: String) -> CalendarSyncResult = { CalendarSyncResult.Unsupported },
+    showShareCodeExport: Boolean = true,
+    showCalendarSync: Boolean = true,
+    showWearableExport: Boolean = true,
+    showWatchExport: Boolean = true,
 ) {
     val switchable = switchableModes.size > 1
     val pageCount = switchableModes.size.coerceAtLeast(1)
@@ -1219,7 +1556,7 @@ fun BackupAndMigrationRoute(
         onBack = { router.popBack() },
         headerOverlay = if (switchable) {
             { backdrop, scrollBehavior ->
-                CapsuleSegmentedControl(
+                SegmentedControl(
                     options = switchableModes.map { modeTabLabel(it) },
                     selectedIndex = selectedTab.coerceIn(0, switchableModes.lastIndex),
                     onSelect = goToPage,
@@ -1227,7 +1564,7 @@ fun BackupAndMigrationRoute(
                     freezeKey = pillFreezeKey,
                     alignKey = pillAlignKey,
                     backdrop = backdrop,
-                    scrollBehavior = scrollBehavior,
+                    surfaceAlpha = LocalTopBarMaterial.current?.alpha?.invoke() ?: 1f,
                     modifier = segmentControlModifier(),
                 )
             }
@@ -1248,6 +1585,10 @@ fun BackupAndMigrationRoute(
                 onExportToWearable = onExportToWearable,
                 watchSyncController = watchSyncController,
                 onSyncToCalendar = onSyncToCalendar,
+                showShareCodeExport = showShareCodeExport,
+                showCalendarSync = showCalendarSync,
+                showWearableExport = showWearableExport,
+                showWatchExport = showWatchExport,
             )
         }
         if (switchable) {
@@ -1308,9 +1649,29 @@ fun CourseTimeSettingsRoute(
     var editingConfig by remember { mutableStateOf<TimeConfig?>(null) }
     var editingRoutineId by remember { mutableStateOf<Long?>(null) }
     var editingCardBounds by remember { mutableStateOf<TimeConfigCardBounds?>(null) }
+    /** 编辑页是否已放行展开动画（先上屏卡态、藏源行、拍快照，再开跑） */
+    var editMorphStarted by remember { mutableStateOf(false) }
     var listRefreshTrigger by remember { mutableIntStateOf(0) }
     // 列表页持有卡片本体，这里只留快照完成转场
     var cardSnapshot by remember { mutableStateOf<TransitionLayerSnapshot?>(null) }
+
+    // 形变背景：整页按需录一层，缩放它而不是缩放实时页面。
+    // 露出部分由 MirroredSnapshotBackdrop 用同一张图的镜像补齐，不会透出下层内容。
+    val pageLayer = rememberGraphicsLayer()
+    var pageRecordRequest by remember { mutableIntStateOf(0) }
+    val pageLastRecorded = remember { intArrayOf(-1) }
+    var editBackgroundSnapshot by remember { mutableStateOf<TransitionLayerSnapshot?>(null) }
+    val editBackgroundScale = remember { Animatable(1f) }
+
+    suspend fun capturePageSnapshot(): TransitionLayerSnapshot? {
+        pageRecordRequest++
+        while (pageLastRecorded[0] != pageRecordRequest) withFrameNanos { }
+        return if (pageLayer.size.width > 0 && pageLayer.size.height > 0) {
+            TransitionLayerSnapshot(pageLayer)
+        } else {
+            null
+        }
+    }
 
     // 页面级背景模糊
     val managePageBlurRadius = remember { Animatable(0f) }
@@ -1330,14 +1691,28 @@ fun CourseTimeSettingsRoute(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    // 用 renderEffect 在绘制阶段求半径，避免动画时重组
-                    //（isRenderEffectSupported 跨平台；不支持时返回 null = 不模糊）
-                    val blurRadiusPx = managePageBlurRadius.value * density.density
-                    renderEffect = if (blurRadiusPx > 0f && isRenderEffectSupported()) {
+                    // 背景快照就位后模糊交给快照层；只有取不到快照时才回落到实时模糊。
+                    // 半径仍在绘制阶段求，避免动画时重组。
+                    val blurRadiusPx = if (editBackgroundSnapshot == null) {
+                        managePageBlurRadius.value * density.density
+                    } else {
+                        0f
+                    }
+                    renderEffect = if (blurRadiusPx > 0.01f && isRenderEffectSupported()) {
                         BlurEffect(null, blurRadiusPx, blurRadiusPx, TileMode.Clamp)
                     } else null
                 }
-                .background(MiuixTheme.colorScheme.surface)
+                .background(NexioTheme.colorScheme.surface)
+                .drawWithContent {
+                    // 只在被请求时录一帧整页（形变背景用）；快照覆盖期间实时页面整块不画
+                    if (pageLastRecorded[0] != pageRecordRequest) {
+                        pageLayer.record { this@drawWithContent.drawContent() }
+                        pageLastRecorded[0] = pageRecordRequest
+                        drawLayer(pageLayer)
+                    } else if (editBackgroundSnapshot == null) {
+                        drawContent()
+                    }
+                }
         ) {
             DocumentPageScaffold(
                 title = ChromeStr.classTimeSettings(),
@@ -1350,14 +1725,34 @@ fun CourseTimeSettingsRoute(
                         editingRoutineId = routine.id
                         editingCardBounds = bounds
                         cardSnapshot = bounds.snapshot
+                        editMorphStarted = false
                         coroutineScope.launch {
-                            if (editingExitStarted || currentPage != "edit") return@launch
-                            managePageBlurRadius.animateTo(
-                                targetValue = 16f,
-                                animationSpec = tween(540, easing = OobeQuartOutEasing)
-                            )
+                            if (editingExitStarted || currentPage == "edit") return@launch
+                            // 先切页：编辑页以「起点卡态」上屏，画的正是同一张卡；同时
+                            // morphActive 让实时页的源行不画。屏幕此时没有任何变化，
+                            // 接着拍的整页快照里就没有源行了。
+                            currentPage = "edit"
+                            val background = capturePageSnapshot()
+                            background?.freezeSource()
+                            editBackgroundScale.snapTo(1f)
+                            editBackgroundSnapshot = background
+                            // 快照层上屏（替换实时页面）后再放行动画
+                            withFrameNanos { }
+                            withFrameNanos { }
+                            editMorphStarted = true
+                            launch {
+                                managePageBlurRadius.animateTo(
+                                    targetValue = 12f,
+                                    animationSpec = tween(580, easing = OobeQuartOutEasing)
+                                )
+                            }
+                            launch {
+                                editBackgroundScale.animateTo(
+                                    targetValue = MORPH_BACKGROUND_SHRINK,
+                                    animationSpec = tween(580, easing = OobeQuartOutEasing)
+                                )
+                            }
                         }
-                        currentPage = "edit"
                     },
                     refreshTrigger = listRefreshTrigger,
                     scrollBehavior = scrollBehavior,
@@ -1365,6 +1760,17 @@ fun CourseTimeSettingsRoute(
                     morphActive = currentPage == "edit",
                 )
             }
+        }
+
+        // 编辑页背景：整页快照缩放，露出部分用同一张图的镜像补齐，不缩放实时页面
+        editBackgroundSnapshot?.let { background ->
+            MirroredSnapshotBackdrop(
+                snapshot = background,
+                shrink = { editBackgroundScale.value },
+                modifier = Modifier.fillMaxSize(),
+                backgroundColor = NexioTheme.colorScheme.surface,
+                blurRadiusPx = { managePageBlurRadius.value * density.density },
+            )
         }
 
         // 编辑页渲染在脚手架外面
@@ -1383,10 +1789,18 @@ fun CourseTimeSettingsRoute(
                         onBackStart = {
                             editingExitStarted = true
                             coroutineScope.launch {
-                                managePageBlurRadius.animateTo(
-                                    targetValue = 0f,
-                                    animationSpec = tween(320, easing = OobeCubicOutEasing)
-                                )
+                                launch {
+                                    managePageBlurRadius.animateTo(
+                                        targetValue = 0f,
+                                        animationSpec = tween(340, easing = OobeCubicOutEasing)
+                                    )
+                                }
+                                launch {
+                                    editBackgroundScale.animateTo(
+                                        targetValue = 1f,
+                                        animationSpec = tween(340, easing = OobeCubicOutEasing)
+                                    )
+                                }
                             }
                         },
                         onBack = {
@@ -1395,6 +1809,7 @@ fun CourseTimeSettingsRoute(
                             editingRoutineId = null
                             editingCardBounds = null
                             cardSnapshot = null
+                            editBackgroundSnapshot = null
                         },
                         onSave = { savedConfig ->
                             // 只替换这一个作息；节次骨架由一级页面管理，这里不碰。
@@ -1426,6 +1841,7 @@ fun CourseTimeSettingsRoute(
                             listRefreshTrigger++
                         },
                         liquidGlassBackdrop = editLiquidGlassBackdrop,
+                        morphStarted = editMorphStarted,
                     )
                 }
             }
@@ -1460,11 +1876,32 @@ fun CourseManageRoute(
     var cardWidth by remember { mutableFloatStateOf(0f) }
     var cardHeight by remember { mutableFloatStateOf(0f) }
     var cardSnapshot by remember { mutableStateOf<TransitionLayerSnapshot?>(null) }
+
+    // 形变背景：整页按需录一层，缩放它而不是缩放实时页面。
+    // 露出部分由 MirroredSnapshotBackdrop 用同一张图的镜像补齐，不会透出下层内容。
+    val pageLayer = rememberGraphicsLayer()
+    var pageRecordRequest by remember { mutableIntStateOf(0) }
+    val pageLastRecorded = remember { intArrayOf(-1) }
+    var editBackgroundSnapshot by remember { mutableStateOf<TransitionLayerSnapshot?>(null) }
+    val editBackgroundScale = remember { Animatable(1f) }
+
+    suspend fun capturePageSnapshot(): TransitionLayerSnapshot? {
+        pageRecordRequest++
+        while (pageLastRecorded[0] != pageRecordRequest) withFrameNanos { }
+        return if (pageLayer.size.width > 0 && pageLayer.size.height > 0) {
+            TransitionLayerSnapshot(pageLayer)
+        } else {
+            null
+        }
+    }
     var cardColor by remember { mutableStateOf(Color(0xFF4CAF50)) }
     var cardAlpha by remember { mutableFloatStateOf(0.12f) }
-    var hiddenCourseIds by remember { mutableStateOf(setOf<String>()) }
     var shrinkingCourseIds by remember { mutableStateOf(setOf<String>()) }
     var pendingAutoExitDeleteIds by remember { mutableStateOf(setOf<String>()) }
+    /** 进编辑形变前藏掉的源卡片：先藏再截整页，快照里才不会留下它 */
+    var hiddenCourseIds by remember { mutableStateOf(setOf<String>()) }
+    /** 编辑页是否已放行展开动画（先上屏卡态、藏源卡、拍快照，再开跑） */
+    var editMorphStarted by remember { mutableStateOf(false) }
 
     var showShortcutMenu by remember { mutableStateOf(false) }
     var shortcutMenuPosition by remember { mutableStateOf(Offset.Zero) }
@@ -1534,9 +1971,11 @@ fun CourseManageRoute(
                 .fillMaxSize()
                 .graphicsLayer {
                     // renderEffect 在绘制阶段赋半径，避免动画每帧重组整页
+                    // 背景快照就位后编辑形变的模糊交给快照层；快捷菜单模糊仍走实时页
                     val blurAnim =
                         if (shortcutMenuBlurRadius.value > 0.01f) shortcutMenuBlurRadius.value
-                        else managePageBlurRadius.value
+                        else if (editBackgroundSnapshot == null) managePageBlurRadius.value
+                        else 0f
                     renderEffect = if (blurAnim > 0.01f && isRenderEffectSupported()) {
                         val blurPx = blurAnim.dp.toPx()
                         BlurEffect(null, blurPx, blurPx, TileMode.Clamp)
@@ -1544,7 +1983,17 @@ fun CourseManageRoute(
                     scaleX = shortcutMenuPageScale.value
                     scaleY = shortcutMenuPageScale.value
                 }
-                .background(MiuixTheme.colorScheme.surface)
+                .background(NexioTheme.colorScheme.surface)
+                .drawWithContent {
+                    // 只在被请求时录一帧整页（形变背景用）；快照覆盖期间实时页面整块不画
+                    if (pageLastRecorded[0] != pageRecordRequest) {
+                        pageLayer.record { this@drawWithContent.drawContent() }
+                        pageLastRecorded[0] = pageRecordRequest
+                        drawLayer(pageLayer)
+                    } else if (editBackgroundSnapshot == null) {
+                        drawContent()
+                    }
+                }
         ) {
             DocumentPageScaffold(
                 title = ChromeStr.courseManage(),
@@ -1588,6 +2037,7 @@ fun CourseManageRoute(
                     onDeleteConfirmDismiss = { showDeleteConfirmDialog = false },
                     onCourseClick = { courses, left, top, width, height, snapshot, color, alpha ->
                         coroutineScope.launch {
+                            if (showEditScreen) return@launch
                             selectedCourses = courses
                             cardLeft = left
                             cardTop = top
@@ -1596,15 +2046,32 @@ fun CourseManageRoute(
                             cardColor = color
                             cardAlpha = alpha
                             cardSnapshot = snapshot
-                            hiddenCourseIds = courses.map { it.id }.toSet()
                             // 打开即视为编辑过
                             editedCourseIds = editedCourseIds + courses.map { it.id }
-
+                            editMorphStarted = false
+                            // 先让编辑页以「起点卡态」上屏（画的正是这些卡），同帧再藏源卡：
+                            // 屏幕看不出变化，随后拍的整页快照里也就没有源卡。
                             showEditScreen = true
+                            hiddenCourseIds = courses.map { it.id }.toSet()
+                            val background = capturePageSnapshot()
+                            // 同作息编辑：先光栅化，形变期间只画位图，避免每帧重放整页
+                            background?.freezeSource()
+                            editBackgroundScale.snapTo(1f)
+                            editBackgroundSnapshot = background
+                            // 快照层上屏（替换实时页面）后再放行动画
+                            withFrameNanos { }
+                            withFrameNanos { }
+                            editMorphStarted = true
                             launch {
                                 managePageBlurRadius.animateTo(
-                                    targetValue = 16f,
-                                    animationSpec = tween(540, easing = OobeQuartOutEasing)
+                                    targetValue = 12f,
+                                    animationSpec = tween(580, easing = OobeQuartOutEasing)
+                                )
+                            }
+                            launch {
+                                editBackgroundScale.animateTo(
+                                    targetValue = MORPH_BACKGROUND_SHRINK,
+                                    animationSpec = tween(580, easing = OobeQuartOutEasing)
                                 )
                             }
                         }
@@ -1612,6 +2079,17 @@ fun CourseManageRoute(
                     liquidGlassBackdrop = liquidGlassBackdrop,
                 )
             }
+        }
+
+        // 编辑页背景：整页快照缩放，露出部分用同一张图的镜像补齐，不缩放实时页面
+        editBackgroundSnapshot?.let { background ->
+            MirroredSnapshotBackdrop(
+                snapshot = background,
+                shrink = { editBackgroundScale.value },
+                modifier = Modifier.fillMaxSize(),
+                backgroundColor = NexioTheme.colorScheme.surface,
+                blurRadiusPx = { managePageBlurRadius.value * density.density },
+            )
         }
 
         // 编辑页在模糊层之上
@@ -1628,19 +2106,30 @@ fun CourseManageRoute(
                 cardSnapshot = cardSnapshot,
                 cardColor = cardColor,
                 cardAlpha = cardAlpha,
+                morphStarted = editMorphStarted,
                 onBackStart = {
                     coroutineScope.launch {
-                        managePageBlurRadius.animateTo(
-                            targetValue = 0f,
-                            animationSpec = tween(320, easing = OobeCubicOutEasing)
-                        )
+                        launch {
+                            managePageBlurRadius.animateTo(
+                                targetValue = 0f,
+                                animationSpec = tween(340, easing = OobeCubicOutEasing)
+                            )
+                        }
+                        launch {
+                            editBackgroundScale.animateTo(
+                                targetValue = 1f,
+                                animationSpec = tween(340, easing = OobeCubicOutEasing)
+                            )
+                        }
                     }
                 },
                 onBack = {
+                    // 编辑页缩回时源卡片要重新出现，morph 才落得回去
+                    hiddenCourseIds = emptySet()
                     if (pendingAutoExitDeleteIds.isNotEmpty()) {
                         showEditScreen = false
                         cardSnapshot = null
-                        hiddenCourseIds = emptySet()
+                        editBackgroundSnapshot = null
                         shrinkingCourseIds = pendingAutoExitDeleteIds
                         coroutineScope.launch {
                             delay(300.milliseconds)
@@ -1653,7 +2142,7 @@ fun CourseManageRoute(
                     } else {
                         showEditScreen = false
                         cardSnapshot = null
-                        hiddenCourseIds = emptySet()
+                        editBackgroundSnapshot = null
                     }
                 },
                 onCourseUpdated = { course ->
@@ -1744,7 +2233,7 @@ fun CourseManageRoute(
             show = showShortcutMenu,
             items = listOf(
                 ShortcutMenuItem(
-                    icon = MiuixIcons.Edit,
+                    icon = NexioIcons.Edit,
                     label = CommonStr.edit(),
                     onClick = {
                         if (shortcutMenuCourses.isNotEmpty()) {
@@ -1758,7 +2247,7 @@ fun CourseManageRoute(
                     }
                 ),
                 ShortcutMenuItem(
-                    icon = MiuixIcons.Delete,
+                    icon = NexioIcons.Delete,
                     label = CommonStr.delete(),
                     onClick = {
                         pendingDeleteCourses = shortcutMenuCourses.toList()

@@ -31,14 +31,14 @@ import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.miuix.Text as Text
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 // 权限表第三列的「必需 / 可选」标签：数据与 PolicyTable 的着色判断复用同一实例
 private val TAG_REQUIRED = L("必需", "Required")
@@ -101,8 +101,8 @@ private val POLICY_SECTIONS: List<PolicySection> = listOf(
             PolicyBlock.Bullets(
                 listOf(
                     L(
-                        "随机设备标识：由本应用在本机随机生成的 UUID 并存储在本地，不含任何硬件唯一标识（我们不获取 IMEI、MAC 地址、Android ID、手机号等信息）；",
-                        "Random device identifier: a UUID generated randomly by the App on the device and stored locally; it contains no hardware-unique identifier (we do not obtain your IMEI, MAC address, Android ID, phone number, or similar information);"
+                        "稳定设备标识：为在卸载重装后保持统计与 AI 调用额度的连续性，我们会读取系统提供的设备标识（Android 为 ANDROID_ID，iOS 为保存在系统钥匙串中的随机 UUID），经不可逆哈希后作为设备标识；我们不会获取 IMEI、MAC 地址、手机号等信息。恢复出厂设置、更换应用签名或清除系统钥匙串后，该标识会发生变化；",
+                        "Stable device identifier: to keep statistics and AI usage quotas continuous across reinstallations, we read a system-provided device identifier (ANDROID_ID on Android; a random UUID stored in the system Keychain on iOS) and use its irreversible hash as the device identifier; we do not obtain your IMEI, MAC address, phone number, or similar information. The identifier changes after a factory reset, an app-signing key change, or clearing the system Keychain;"
                     ),
                     L("设备与系统信息：设备型号、品牌、厂商、Android 系统版本、系统 API 等级；", "Device and system information: device model, brand, manufacturer, Android version, and system API level;"),
                     L("应用信息：本应用版本号；", "App information: the version number of the App;"),
@@ -111,8 +111,8 @@ private val POLICY_SECTIONS: List<PolicySection> = listOf(
             ),
             PolicyBlock.Para(
                 L(
-                    "上述信息仅用于匿名化统计与运营，不用于广告推送，也不会与您的课程数据关联。我们未接入任何第三方商业统计、广告或崩溃采集 SDK。",
-                    "The above information is used only for anonymized statistics and operations, not for advertising, and is never associated with your course data. The App integrates no third-party commercial analytics, advertising, or crash-collection SDK."
+                    "上述信息仅用于去标识化统计与运营，不用于广告推送，也不会与您的课程数据关联。我们未接入任何第三方商业统计、广告或崩溃采集 SDK。",
+                    "The above information is used only for de-identified statistics and operations, not for advertising, and is never associated with your course data. The App integrates no third-party commercial analytics, advertising, or crash-collection SDK."
                 )
             ),
             PolicyBlock.Sub(L("2. 位置信息（可选，用于天气）", "2. Location information (optional, for weather)")),
@@ -162,7 +162,7 @@ private val POLICY_SECTIONS: List<PolicySection> = listOf(
                 listOf(
                     L("姓名、手机号、身份证号等身份信息；", "Identity information such as your name, phone number, and ID card number;"),
                     L("通讯录、短信、通话记录、相册照片与视频；", "Contacts, SMS messages, call logs, and photos or videos in your gallery;"),
-                    L("设备硬件唯一标识（IMEI、MAC 地址、Android ID 等）；", "Hardware-unique device identifiers (IMEI, MAC address, Android ID, etc.);"),
+                    L("原始硬件唯一标识（IMEI、MAC 地址、设备序列号等）；Android ID 仅在本地用于生成不可逆哈希，服务端不会收到原始值；", "Raw hardware-unique identifiers (IMEI, MAC address, device serial number, etc.); ANDROID_ID is used only locally to derive an irreversible hash, and the server never receives the raw value;"),
                     L("您在其他应用中的使用行为。", "Your usage behavior in other apps."),
                 )
             ),
@@ -186,7 +186,7 @@ private val POLICY_SECTIONS: List<PolicySection> = listOf(
                 rows = listOf(
                     listOf(
                         L("INTERNET", "INTERNET"),
-                        L("访问网络。用于教务导入、天气查询、检查更新、WebDAV 云同步、课表分享及匿名统计上报。", "Network access. Used for academic system import, weather queries, checking for updates, WebDAV cloud sync, timetable sharing, and anonymous statistics reporting."),
+                        L("访问网络。用于教务导入、天气查询、检查更新、WebDAV 云同步、课表分享及统计上报。", "Network access. Used for academic system import, weather queries, checking for updates, WebDAV cloud sync, timetable sharing, and statistics reporting."),
                         TAG_REQUIRED,
                     ),
                     listOf(
@@ -232,6 +232,16 @@ private val POLICY_SECTIONS: List<PolicySection> = listOf(
                     listOf(
                         L("ACCESS_FINE_LOCATION / ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION / ACCESS_COARSE_LOCATION"),
                         L("仅在开启天气功能并授权后获取当前位置查询天气；不使用天气功能则不申请、不获取。", "Obtains the current location to query the weather only after the weather feature is enabled and the permission is granted. Not requested or obtained if the weather feature is not used."),
+                        TAG_OPTIONAL,
+                    ),
+                    listOf(
+                        L("BLUETOOTH_SCAN / BLUETOOTH_CONNECT（Android 11 及以下为 BLUETOOTH / BLUETOOTH_ADMIN）", "BLUETOOTH_SCAN / BLUETOOTH_CONNECT (BLUETOOTH / BLUETOOTH_ADMIN on Android 11 and below)"),
+                        L("将课表导出到你的蓝牙设备（如手表、手环）时扫描并连接该设备；扫描已声明不用于推断位置，不导出则不申请。", "Scans for and connects to your Bluetooth device (such as a watch or band) when exporting the timetable to it. The scan is declared not to be used for inferring location, and the permission is not requested unless you export."),
+                        TAG_OPTIONAL,
+                    ),
+                    listOf(
+                        L("READ_CALENDAR / WRITE_CALENDAR", "READ_CALENDAR / WRITE_CALENDAR"),
+                        L("将课程同步到系统日历、并避免重复写入；仅在你主动使用「同步到日历」时申请，可随时在系统设置中撤销。", "Syncs courses into the system calendar and avoids duplicate entries. Requested only when you actively use “Sync to calendar”, and can be revoked in the system settings at any time."),
                         TAG_OPTIONAL,
                     ),
                     listOf(
@@ -287,18 +297,28 @@ private val POLICY_SECTIONS: List<PolicySection> = listOf(
                 rows = listOf(
                     listOf(
                         L("Nexio 服务端（开发者自建，nexioschedule.icu）", "Nexio server (self-hosted by the developer, nexioschedule.icu)"),
-                        L("匿名安装/活跃统计、应用公告下发、课表分享口令中转、赞赏榜展示", "Anonymous install/activity statistics, in-app announcement delivery, timetable share-code relaying, and the supporters leaderboard"),
-                        L("随机设备标识、设备型号、品牌/厂商、系统版本、应用版本、事件时间", "Random device identifier, device model, brand/manufacturer, system version, app version, and event timestamps"),
+                        L("安装/活跃统计、应用公告下发、课表分享口令中转、赞赏榜展示", "Install/activity statistics, in-app announcement delivery, timetable share-code relaying, and the supporters leaderboard"),
+                        L("稳定设备标识（不可逆哈希）、设备型号、品牌/厂商、系统版本、应用版本、事件时间", "Stable device identifier (irreversible hash), device model, brand/manufacturer, system version, app version, and event timestamps"),
                     ),
                     listOf(
-                        L("天气服务（彩云天气，经 v1.apizero.cn 接口）", "Weather service (Caiyun Weather, via the v1.apizero.cn API)"),
+                        L("天气服务（小米天气，weatherapi.market.xiaomi.com）", "Weather service (Mi Weather, weatherapi.market.xiaomi.com)"),
                         L("展示所在地天气", "Displays the weather at your location"),
                         L("经纬度坐标", "Latitude and longitude coordinates"),
                     ),
                     listOf(
-                        L("天气服务（t.weather.itboy.net，中国天气网数据源）", "Weather service (t.weather.itboy.net, using data from China Weather Network)"),
+                        L("天气服务（中国天气网，d1.weather.com.cn）", "Weather service (China Weather Network, d1.weather.com.cn)"),
                         L("展示所在地天气（可切换数据源）", "Displays the weather at your location (data source switchable)"),
                         L("定位解析得到的城市编码", "The city code resolved from your location"),
+                    ),
+                    listOf(
+                        L("天气服务（Open-Meteo，api.open-meteo.com / air-quality-api.open-meteo.com）", "Weather service (Open-Meteo, api.open-meteo.com / air-quality-api.open-meteo.com)"),
+                        L("备用天气数据源与空气质量", "Fallback weather source and air quality"),
+                        L("经纬度坐标", "Latitude and longitude coordinates"),
+                    ),
+                    listOf(
+                        L("节假日数据接口（api.apihubs.cn）", "Holiday data API (api.apihubs.cn)"),
+                        L("获取法定节假日与调休安排", "Fetches public holidays and adjusted working days"),
+                        L("无个人标识，仅请求年份", "No personal identifiers; only the year is requested"),
                     ),
                     listOf(
                         L("GitHub / Gitee Releases 接口", "GitHub / Gitee Releases APIs"),
@@ -346,12 +366,12 @@ private val POLICY_SECTIONS: List<PolicySection> = listOf(
             PolicyBlock.Bullets(
                 listOf(
                     L(
-                        "存储地点：本应用收集的匿名统计信息存储于中华人民共和国境内的服务器（阿里云 ECS）中，不涉及个人信息出境。",
-                        "Storage location: the anonymized statistics collected by the App are stored on servers within the People's Republic of China (Alibaba Cloud ECS); no personal information is transferred out of the country."
+                        "存储地点：本应用收集的去标识化统计信息存储于中华人民共和国境内的服务器（阿里云 ECS）中，不涉及个人信息出境。",
+                        "Storage location: the de-identified statistics collected by the App are stored on servers within the People's Republic of China (Alibaba Cloud ECS); no personal information is transferred out of the country."
                     ),
                     L(
-                        "存储期限：课表等核心数据存储于您的设备本地，由您自行控制；匿名统计信息在实现统计目的所必需的期限内保存，超出期限后将予以删除或匿名化处理；分享口令数据在 30 分钟有效期届满后自动删除。",
-                        "Retention period: core data such as your timetable is stored locally on your device and remains under your control; anonymized statistics are kept only for the period necessary to fulfill the statistical purposes and are deleted or anonymized once that period expires; share-code data is deleted automatically when its 30-minute validity period ends."
+                        "存储期限：课表等核心数据存储于您的设备本地，由您自行控制；去标识化统计信息在实现统计目的所必需的期限内保存，超出期限后将予以删除或匿名化处理；分享口令数据在 30 分钟有效期届满后自动删除。",
+                        "Retention period: core data such as your timetable is stored locally on your device and remains under your control; de-identified statistics are kept only for the period necessary to fulfill the statistical purposes and are deleted or anonymized once that period expires; share-code data is deleted automatically when its 30-minute validity period ends."
                     ),
                     L(
                         "安全措施：我们采用访问控制、传输与存储加密（在支持的链路上）等合理可行的安全措施保护信息安全，并限制内部人员对数据的访问。但请您理解，任何技术手段都无法保证绝对安全，请妥善保管您的设备与账户信息。",
@@ -391,14 +411,14 @@ private val POLICY_SECTIONS: List<PolicySection> = listOf(
             PolicyBlock.Bullets(
                 listOf(
                     L("查阅与更正：您的课程表等数据均可在本应用内直接查看、编辑和修改。", "Access and correction: your timetable and other data can be viewed, edited, and modified directly within the App."),
-                    L("删除：您可在应用内删除课程、课表及本地备份数据；卸载本应用将删除设备本地存储的全部数据。", "Deletion: you can delete courses, timetables, and local backup data within the App; uninstalling the App deletes all data stored locally on the device."),
+                    L("删除：您可在应用内删除课程、课表及本地备份数据；卸载本应用将删除设备本地存储的全部数据，但 iOS 系统钥匙串中的设备标识可能保留。", "Deletion: you can delete courses, timetables, and local backup data within the App; uninstalling the App deletes all data stored locally on the device, but the device identifier in the iOS system Keychain may remain."),
                     L(
                         "撤回授权：您可随时在系统「设置 - 应用 - Nexio 课程表 - 权限」中关闭定位、通知等权限，或在应用内关闭天气、云同步等功能；也可在「关于」页点击「撤回同意」。",
                         "Withdrawal of consent: you can turn off permissions such as location and notifications at any time under the system's “Settings - Apps - Nexio Schedule - Permissions”, or disable features such as weather and cloud sync within the App; you can also tap “Withdraw consent” on the “About” page."
                     ),
                     L(
-                        "注销与删除服务器数据：本应用无账号体系，无需注销账户。若您希望删除与您设备随机标识关联的匿名统计数据，或对信息处理有任何诉求，请发送邮件至 439089703@qq.com。",
-                        "Account cancellation and server data deletion: the App has no account system, so there is no account to cancel. If you wish to delete the anonymized statistics associated with your device's random identifier, or have any other request regarding the processing of your information, please email 439089703@qq.com."
+                        "注销与删除服务器数据：本应用无账号体系，无需注销账户。若您希望删除与您设备标识关联的去标识化统计数据，或对信息处理有任何诉求，请发送邮件至 439089703@qq.com。",
+                        "Account cancellation and server data deletion: the App has no account system, so there is no account to cancel. If you wish to delete the de-identified statistics associated with your device identifier, or have any other request regarding the processing of your information, please email 439089703@qq.com."
                     ),
                 )
             ),
@@ -420,8 +440,29 @@ private val POLICY_SECTIONS: List<PolicySection> = listOf(
         blocks = listOf(
             PolicyBlock.Para(
                 L(
-                    "我们可能会根据法律法规变化或业务调整适时更新本政策。更新后，我们会在本页面发布最新版本并更新「更新日期」，重大变更还将通过应用内公告等显著方式另行提示。若您在政策更新后继续使用本应用，即表示您同意接受更新后的政策；若您不同意，请停止使用并卸载本应用。",
-                    "We may update this policy from time to time in response to changes in laws and regulations or adjustments to our operations. After each update, we will publish the latest version on this page and refresh the “Last updated” date; material changes will also be highlighted separately through prominent means such as in-app announcements. If you continue to use the App after the policy is updated, you are deemed to have accepted the updated policy; if you do not agree, please stop using and uninstall the App."
+                    "我们可能会根据法律法规变化或业务调整适时更新本政策。更新后，我们会在本页面发布最新版本并更新「更新日期」。发生重大变更（收集范围、权限、第三方服务等实质变化）时，我们会在您下次启动时重新展示隐私政策同意页面，需您明确同意后方可继续使用；若您不同意，请停止使用并卸载本应用。",
+                    "We may update this policy from time to time in response to changes in laws and regulations or adjustments to our operations. After each update, we will publish the latest version on this page and refresh the “Last updated” date. In the event of material changes (substantive changes to what we collect, the permissions we request, or the third-party services we use), we will present the privacy consent screen again the next time you launch the App, and you must give explicit consent before continuing to use it; if you do not agree, please stop using and uninstall the App."
+                )
+            ),
+            PolicyBlock.Sub(L("本次更新（2026 年 11 月 15 日）", "Changes in this update (November 15, 2026)")),
+            PolicyBlock.Bullets(
+                listOf(
+                    L(
+                        "更新天气服务商清单：小米天气、中国天气网、Open-Meteo（含空气质量），并移除已下线的旧数据源；",
+                        "Updated the weather provider list: Mi Weather, China Weather Network, and Open-Meteo (including air quality), and removed the retired data sources;",
+                    ),
+                    L(
+                        "补充节假日与调休数据接口（api.apihubs.cn）的说明；",
+                        "Added a description of the holiday and adjusted-working-day data API (api.apihubs.cn);",
+                    ),
+                    L(
+                        "权限清单补充蓝牙（课表导出到手表/手环）与日历读写（同步到系统日历）两项；",
+                        "Added two entries to the permission list: Bluetooth (exporting the timetable to a watch or band) and calendar read/write (syncing to the system calendar);",
+                    ),
+                    L(
+                        "因上述变更属实质性变更，隐私政策版本号递增，所有用户需重新阅读并同意后方可继续使用。",
+                        "Because these changes are material, the policy version has been incremented, and all users must review and agree again before continuing to use the App.",
+                    ),
                 )
             ),
         )
@@ -495,13 +536,13 @@ fun PrivacyPolicyScreen(
                             text = L("Nexio 课程表 隐私政策", "Nexio Schedule Privacy Policy")(),
                             fontSize = 24.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = MiuixTheme.colorScheme.onSurface
+                            color = NexioTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = L("生效日期：2026 年 10 月 2 日\n更新日期：2026 年 10 月 2 日", "Effective date: October 2, 2026\nLast updated: October 2, 2026")(),
+                            text = L("生效日期：2026 年 10 月 2 日\n更新日期：2026 年 11 月 16 日", "Effective date: October 2, 2026\nLast updated: November 16, 2026")(),
                             fontSize = 13.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions
                         )
                     }
                 }
@@ -517,9 +558,9 @@ fun PrivacyPolicyScreen(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
-                            text = L("本政策自 2026 年 10 月 2 日起生效 · Nexio 课程表", "This policy is effective as of October 2, 2026 · Nexio Schedule")(),
+                            text = L("本政策自 2026 年 10 月 2 日起生效，最近更新于 2026 年 11 月 15 日 · Nexio 课程表", "This policy is effective as of October 2, 2026 and was last updated on November 15, 2026 · Nexio Schedule")(),
                             fontSize = 12.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
                         )
                     }
                 }
@@ -539,7 +580,7 @@ internal fun PolicySectionCard(section: PolicySection) {
                 text = section.title(),
                 fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = MiuixTheme.colorScheme.onSurface
+                color = NexioTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(17.dp))
             section.blocks.forEach { block ->
@@ -557,7 +598,7 @@ internal fun PolicyBlockView(block: PolicyBlock) {
                 text = block.text(),
                 fontSize = 14.sp,
                 lineHeight = 23.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                color = NexioTheme.colorScheme.onSurfaceVariantActions
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -568,7 +609,7 @@ internal fun PolicyBlockView(block: PolicyBlock) {
                 text = block.text(),
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurface
+                color = NexioTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(8.dp))
         }
@@ -582,7 +623,7 @@ internal fun PolicyBlockView(block: PolicyBlock) {
                             .width(5.dp)
                             .height(5.dp)
                             .background(
-                                MiuixTheme.colorScheme.primary,
+                                NexioTheme.colorScheme.primary,
                                 ContinuousRoundedRectangle(2.5f.dp)
                             )
                     )
@@ -591,7 +632,7 @@ internal fun PolicyBlockView(block: PolicyBlock) {
                         text = item(),
                         fontSize = 14.sp,
                         lineHeight = 23.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions
                     )
                 }
             }
@@ -603,7 +644,7 @@ internal fun PolicyBlockView(block: PolicyBlock) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
-                        MiuixTheme.colorScheme.primary.copy(alpha = 0.08f),
+                        NexioTheme.colorScheme.primary.copy(alpha = 0.08f),
                         com.haooz.softglass.shape.ContinuousRoundedRectangle(12.dp)
                     )
                     .padding(16.dp)
@@ -612,7 +653,7 @@ internal fun PolicyBlockView(block: PolicyBlock) {
                     text = block.text(),
                     fontSize = 13.sp,
                     lineHeight = 22.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    color = NexioTheme.colorScheme.onSurfaceVariantActions
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -628,11 +669,11 @@ internal fun PolicyBlockView(block: PolicyBlock) {
                 fontSize = 12.sp,
                 lineHeight = 20.sp,
                 fontFamily = FontFamily.Monospace,
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                color = NexioTheme.colorScheme.onSurfaceVariantActions,
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
-                        MiuixTheme.colorScheme.primary.copy(alpha = 0.08f),
+                        NexioTheme.colorScheme.primary.copy(alpha = 0.08f),
                         com.haooz.softglass.shape.ContinuousRoundedRectangle(12.dp)
                     )
                     .padding(14.dp)
@@ -645,7 +686,7 @@ internal fun PolicyBlockView(block: PolicyBlock) {
                 text = block.text,
                 fontSize = 14.sp,
                 lineHeight = 23.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                color = NexioTheme.colorScheme.onSurfaceVariantActions
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -667,7 +708,7 @@ private fun PolicyTable(headers: List<L10n>, rows: List<List<L10n>>) {
                     text = row.getOrNull(0)?.invoke() ?: "",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface
+                    color = NexioTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 // 第二列：用途说明
@@ -675,7 +716,7 @@ private fun PolicyTable(headers: List<L10n>, rows: List<List<L10n>>) {
                     text = row.getOrNull(1)?.invoke() ?: "",
                     fontSize = 13.sp,
                     lineHeight = 21.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    color = NexioTheme.colorScheme.onSurfaceVariantActions
                 )
                 // 第三列：必需 / 可选（权限表）
                 val third = row.getOrNull(2)
@@ -685,8 +726,8 @@ private fun PolicyTable(headers: List<L10n>, rows: List<List<L10n>>) {
                         text = third?.invoke() ?: "",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
-                        color = if (third === TAG_REQUIRED) MiuixTheme.colorScheme.primary
-                        else MiuixTheme.colorScheme.onSurfaceVariantActions
+                        color = if (third === TAG_REQUIRED) NexioTheme.colorScheme.primary
+                        else NexioTheme.colorScheme.onSurfaceVariantActions
                     )
                 }
             }
@@ -696,7 +737,7 @@ private fun PolicyTable(headers: List<L10n>, rows: List<List<L10n>>) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(1.dp)
-                        .background(MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.12f))
+                        .background(NexioTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.12f))
                 )
             }
         }

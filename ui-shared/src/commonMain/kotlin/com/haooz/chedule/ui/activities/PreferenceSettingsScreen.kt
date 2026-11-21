@@ -35,13 +35,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.holiday.HolidayManager
+import com.haooz.chedule.data.school.ScriptRepository
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.storage.getStringOrNull
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.PreferenceStr
 import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
-import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.nexioui.cardexpand.CardExpand
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.theme.KEY_MONET_COLOR
@@ -49,29 +50,31 @@ import com.haooz.chedule.ui.theme.LocalSystemDarkTheme
 import com.haooz.chedule.ui.theme.isMonetColorAvailable
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.FeatureLog
+import com.haooz.chedule.ui.utils.KEY_TODAY_INFO_CARDS
 import com.haooz.chedule.ui.utils.PredictiveBackSettings
+import com.haooz.chedule.ui.utils.rememberWeatherVisible
 import com.haooz.chedule.uishared.resources.Res
 import com.haooz.chedule.uishared.resources.theme_preview_light
 import com.haooz.chedule.uishared.resources.theme_preview_night
 import com.haooz.chedule.viewmodel.settingsViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.DropdownDefaults
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.preference.SwitchPreference
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.dropdown.DropdownDefaults
+import com.haooz.nexioui.dropdown.DropdownEntry
+import com.haooz.nexioui.dropdown.DropdownItem
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.switchpreference.SwitchPreference
 import com.haooz.softglass.shape.continuousBorder
 import com.haooz.softglass.shape.continuousClip
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 @Composable
 fun PreferenceSettingsScreen(
@@ -83,13 +86,17 @@ fun PreferenceSettingsScreen(
     onInvalidateWeatherCache: () -> Unit = {},
     /** 隐藏最近任务卡片（Android 专有能力；宿主注入） */
     onSetTaskExcludedFromRecents: (Boolean) -> Unit = {},
+    /** 是否展示「预测性返回动画」（仅 Android 有该能力） */
+    showPredictiveBackAnimation: Boolean = true,
+    /** 是否展示「隐藏后台」（仅 Android 有该能力） */
+    showHideFromRecents: Boolean = true,
+    /** 是否展示「莫奈取色」（仅 Android 支持动态取色） */
+    showMonetColor: Boolean = true,
 ) {
 
     val eduPrefs = remember { AppStorage.store("edu_import_prefs") }
     var repoUrl by remember {
-        mutableStateOf(
-            eduPrefs.getString("repo_url", "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse")
-        )
+        mutableStateOf(ScriptRepository.getRepoUrl())
     }
 
     var holidaySource by remember { mutableStateOf(HolidayManager.holidaySource()) }
@@ -141,7 +148,7 @@ fun PreferenceSettingsScreen(
         mutableStateOf(
             appPrefs.getString(
                 AppMaterialSettings.KEY_APP_MATERIAL,
-                AppMaterialSettings.BALANCED
+                AppMaterialSettings.BEST
             )
         )
     }
@@ -252,20 +259,22 @@ fun PreferenceSettingsScreen(
                                     }
                                 }
                             )
-                            SwitchPreference(
-                                title = PreferenceStr.monetColor(),
-                                summary = if (isMonetColorAvailable()) {
-                                    PreferenceStr.monetColorSummary()
-                                } else {
-                                    PreferenceStr.monetColorUnavailable()
-                                },
-                                checked = monetEnabled && isMonetColorAvailable(),
-                                enabled = isMonetColorAvailable(),
-                                onCheckedChange = {
-                                    monetEnabled = it
-                                    themePrefs.edit { putBoolean(KEY_MONET_COLOR, it) }
-                                }
-                            )
+                            if (showMonetColor) {
+                                SwitchPreference(
+                                    title = PreferenceStr.monetColor(),
+                                    summary = if (isMonetColorAvailable()) {
+                                        PreferenceStr.monetColorSummary()
+                                    } else {
+                                        PreferenceStr.monetColorUnavailable()
+                                    },
+                                    checked = monetEnabled && isMonetColorAvailable(),
+                                    enabled = isMonetColorAvailable(),
+                                    onCheckedChange = {
+                                        monetEnabled = it
+                                        themePrefs.edit { putBoolean(KEY_MONET_COLOR, it) }
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -392,19 +401,30 @@ fun PreferenceSettingsScreen(
                                     )
                                 )
                             }
-                            SwitchPreference(
-                                title = PreferenceStr.predictiveBack(),
-                                summary = PreferenceStr.predictiveBackSummary(),
-                                checked = predictiveBackEnabled,
-                                onCheckedChange = {
-                                    predictiveBackEnabled = it
-                                    PredictiveBackSettings.enabled = it
-                                    appPrefs.edit {
-                                        putBoolean(
-                                            PredictiveBackSettings.KEY_PREDICTIVE_BACK_ANIMATION,
-                                            it
-                                        )
+                            if (showPredictiveBackAnimation) {
+                                SwitchPreference(
+                                    title = PreferenceStr.predictiveBack(),
+                                    summary = PreferenceStr.predictiveBackSummary(),
+                                    checked = predictiveBackEnabled,
+                                    onCheckedChange = {
+                                        predictiveBackEnabled = it
+                                        PredictiveBackSettings.enabled = it
+                                        appPrefs.edit {
+                                            putBoolean(
+                                                PredictiveBackSettings.KEY_PREDICTIVE_BACK_ANIMATION,
+                                                it
+                                            )
+                                        }
                                     }
+                                )
+                            }
+                            val weatherVisible = rememberWeatherVisible()
+                            SwitchPreference(
+                                title = PreferenceStr.showWeather(),
+                                summary = PreferenceStr.showWeatherSummary(),
+                                checked = weatherVisible,
+                                onCheckedChange = {
+                                    appPrefs.edit { putBoolean(KEY_TODAY_INFO_CARDS, it) }
                                 }
                             )
                             SwitchPreference(
@@ -421,16 +441,18 @@ fun PreferenceSettingsScreen(
                                     }
                                 }
                             )
-                            SwitchPreference(
-                                title = PreferenceStr.hideFromRecents(),
-                                summary = PreferenceStr.hideFromRecentsSummary(),
-                                checked = hideBackground,
-                                onCheckedChange = {
-                                    hideBackground = it
-                                    appPrefs.edit { putBoolean("hide_background", it) }
-                                    onSetTaskExcludedFromRecents(it)
-                                }
-                            )
+                            if (showHideFromRecents) {
+                                SwitchPreference(
+                                    title = PreferenceStr.hideFromRecents(),
+                                    summary = PreferenceStr.hideFromRecentsSummary(),
+                                    checked = hideBackground,
+                                    onCheckedChange = {
+                                        hideBackground = it
+                                        appPrefs.edit { putBoolean("hide_background", it) }
+                                        onSetTaskExcludedFromRecents(it)
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -447,26 +469,18 @@ fun PreferenceSettingsScreen(
                             val repoEntry = DropdownEntry(
                                 items = listOf(
                                     DropdownItem(
-                                        text = PreferenceStr.forkSource(),
-                                        selected = repoUrl == "https://gitee.com/com_haooz_account/shiguang_warehouse",
+                                        text = "Gitee",
+                                        selected = repoUrl == ScriptRepository.GITEE_REPO_URL,
                                         onClick = {
-                                            repoUrl = "https://gitee.com/com_haooz_account/shiguang_warehouse"
+                                            repoUrl = ScriptRepository.GITEE_REPO_URL
                                             eduPrefs.edit { putString("repo_url", repoUrl) }
                                         }
                                     ),
                                     DropdownItem(
                                         text = "GitHub",
-                                        selected = repoUrl == "https://github.com/XingHeYuZhuan/shiguang_warehouse",
+                                        selected = repoUrl == ScriptRepository.GITHUB_REPO_URL,
                                         onClick = {
-                                            repoUrl = "https://github.com/XingHeYuZhuan/shiguang_warehouse"
-                                            eduPrefs.edit { putString("repo_url", repoUrl) }
-                                        }
-                                    ),
-                                    DropdownItem(
-                                        text = "Gitee",
-                                        selected = repoUrl == "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse",
-                                        onClick = {
-                                            repoUrl = "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse"
+                                            repoUrl = ScriptRepository.GITHUB_REPO_URL
                                             eduPrefs.edit { putString("repo_url", repoUrl) }
                                         }
                                     ),
@@ -572,7 +586,7 @@ private fun ThemeSelectionBox(
                 .fillMaxWidth()
                 .continuousBorder(
                     width = 3.dp,
-                    color = if (selected) MiuixTheme.colorScheme.primary else Color.Transparent,
+                    color = if (selected) NexioTheme.colorScheme.primary else Color.Transparent,
                     cornerRadius = 26.dp
                 )
                 .padding(6.dp)
@@ -593,8 +607,8 @@ private fun ThemeSelectionBox(
         Spacer(Modifier.height(8.dp))
         Text(
             text = label,
-            color = if (selected) MiuixTheme.colorScheme.primary
-            else MiuixTheme.colorScheme.onSurfaceSecondary,
+            color = if (selected) NexioTheme.colorScheme.primary
+            else NexioTheme.colorScheme.onSurfaceSecondary,
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center
